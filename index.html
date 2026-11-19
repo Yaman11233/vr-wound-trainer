@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="sv" dir="ltr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Sårvård VR</title>
+  <meta name="description" content="Träning i blödningskontroll och sårvård i VR (WebXR, Meta Quest 3).">
+  <link rel="stylesheet" href="src/ui/start.css">
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "./vendor/three/build/three.module.js",
+      "three/addons/": "./vendor/three/addons/",
+      "iwer": "./vendor/iwer/iwer.module.min.js",
+      "@iwer/devui": "./vendor/iwer/iwer-devui.module.min.js"
+    }
+  }
+  </script>
+</head>
+<body>
+  <div id="app"></div>
+
+  <section id="start" class="start" aria-labelledby="start-title">
+    <div class="card">
+      <p class="kicker" data-i18n="start.kicker">Klinisk färdighetsträning</p>
+      <h1 id="start-title" data-i18n="start.title">Blödningskontroll och sårvård</h1>
+      <p class="lead" data-i18n="start.lead">Behandlingsrum på akutmottagning. Skärskada på underarmen.</p>
+
+      <div class="row">
+        <label for="scenario" data-i18n="start.scenario">Scenario</label>
+        <select id="scenario"></select>
+      </div>
+      <div class="row">
+        <label for="mode" data-i18n="start.mode">Läge</label>
+        <select id="mode">
+          <option value="guided" data-i18n="mode.guided">Guidat</option>
+          <option value="free" data-i18n="mode.free">Fritt</option>
+          <option value="instructor" data-i18n="mode.instructor">Instruktör</option>
+        </select>
+      </div>
+      <div class="row">
+        <label for="lang" data-i18n="start.language">Språk</label>
+        <select id="lang">
+          <option value="sv">Svenska</option>
+          <option value="en">English</option>
+          <option value="ar">العربية</option>
+        </select>
+      </div>
+
+      <div class="actions">
+        <button id="enter-vr" class="primary" type="button" data-i18n="start.enterVR">Gå in i VR</button>
+        <button id="enter-desktop" type="button" data-i18n="start.enterDesktop">Datorläge</button>
+      </div>
+      <p id="xr-status" class="status" role="status" aria-live="polite"></p>
+
+      <details class="help">
+        <summary data-i18n="start.helpTitle">Kontroller i datorläge</summary>
+        <p data-i18n="start.helpDesktop">Dra med musen för att titta. W A S D för att gå. Q och E sänker och höjer blicken. R återställer positionen. F visar bildfrekvens. Esc tillbaka.</p>
+        <p data-i18n="start.helpIwer">Testa VR-flödet utan headset: öppna sidan med ?iwer=1 i adressen (Immersive Web Emulator).</p>
+      </details>
+      <p class="version" id="version"></p>
+    </div>
+  </section>
+
+  <div id="hud" class="hud" hidden>
+    <span data-i18n="hud.desktop">Datorläge</span>
+    <button id="hud-back" type="button" data-i18n="hud.back">Tillbaka</button>
+  </div>
+  <div id="fps" class="fps" hidden></div>
+
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>
