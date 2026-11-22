@@ -10,14 +10,16 @@ import { t } from '../i18n/index.js';
 const SHOW_DOT = 0.72, HIDE_DOT = 0.45; // hysteres för "handflatan mot ansiktet"
 const BUTTON_Y = 5;                      // xr-standard: Y på vänster kontroll
 
-export function createWristMenu({ scene, input, onRecenter, onToggleFps, onExit, fpsOn }) {
+export function createWristMenu({ scene, input, onRecenter, onToggleFps, onExit, fpsOn, onArmBoard, armBoardText }) {
   const all = [
     { id: 'recenter', label: () => t('menu.recenter'), onPress: onRecenter },
     { id: 'fps', instructorOnly: true, label: () => `${t('menu.fps')}: ${fpsOn() ? t('menu.on') : t('menu.off')}`, onPress: () => { onToggleFps(); panel.draw(); } },
+    { id: 'board-up', instructorOnly: true, label: () => `${t('menu.boardUp')} (${armBoardText?.() ?? ''} m)`, onPress: () => { onArmBoard?.(+1); panel.draw(); } },
+    { id: 'board-down', instructorOnly: true, label: () => t('menu.boardDown'), onPress: () => { onArmBoard?.(-1); panel.draw(); } },
     { id: 'exit', label: () => t('menu.exit'), onPress: onExit },
   ];
   const panel = new Panel3D({
-    width: 0.16, height: 0.15,
+    width: 0.16, height: 0.21,
     title: () => t('menu.title'),
     buttons: all.filter((b) => !b.instructorOnly),
   });

@@ -202,5 +202,6 @@ for e in ('Eye_L', 'Eye_R'):
 for o in bpy.data.objects:
     if o.type == 'MESH':
         for p in o.data.polygons: p.use_smooth = True
+# kudden (pillow.py) har ett enkelt material med textil råhet; behåll det
 bpy.ops.wm.save_as_mainfile(filepath=os.path.join(WORK, 'step3c.blend'))
 print('STEP3C OK')

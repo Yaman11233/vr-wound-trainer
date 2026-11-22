@@ -9,7 +9,7 @@ export default {
   'start.enterVR': 'Gå in i VR',
   'start.enterDesktop': 'Datorläge',
   'start.helpTitle': 'Kontroller i datorläge',
-  'start.helpDesktop': 'Dra med musen för att titta. W A S D för att gå. Q och E sänker och höjer blicken. R återställer positionen. F visar bildfrekvens. Esc tillbaka.',
+  'start.helpDesktop': 'Dra med musen för att titta. W A S D för att gå. Q och E sänker och höjer blicken. R återställer positionen. F visar bildfrekvens. Esc tillbaka. I instruktörsläget höjer och sänker + och − handbordet.',
   'start.helpIwer': 'Testa VR-flödet utan headset: öppna sidan med ?iwer=1 i adressen (Immersive Web Emulator).',
   'mode.guided': 'Guidat',
   'mode.free': 'Fritt',
@@ -36,6 +36,8 @@ export default {
   'menu.exit': 'Avsluta VR',
   'menu.on': 'på',
   'menu.off': 'av',
+  'menu.boardUp': 'Höj handbordet',
+  'menu.boardDown': 'Sänk handbordet',
 
   'monitor.noSignal': 'Ej ansluten',
   'monitor.hr': 'Puls',

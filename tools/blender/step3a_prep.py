@@ -147,6 +147,10 @@ for i in cand:
 print('CONTACT zmin', round(zmin, 4), 'flattened verts', nflat)
 import scene_bed
 fitres = scene_bed.fit(arm)
+import pillow
+pl = pillow.make_pillow(center_along=0.75)
+print('PILLOW tris', sum(len(p.vertices) - 2 for p in pl.data.polygons))
+set_active(body)
 print('ARMBOARD top', round(fitres['armboard']['top'], 4))
 arm_faces = [p.index for p in body.data.polygons if p.material_index == 1]
 print('ARM faces', len(arm_faces), 'body tris', tri_count(body, False))

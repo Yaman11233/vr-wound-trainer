@@ -5,11 +5,15 @@ ljus och ju fler överlappande vinklar, desto mindre syns skarvarna. Räkna med 
 
 ## Innan du börjar
 
-- **Integritet:** texturen hamnar i det öppna repot och blir offentlig (CC0).
-  - Fingeravtryck: i skarpa bilder av fingertopparna syns de. Jag ersätter alltid fingertopparnas
-    papillarlinjer med ett påhittat mönster innan något publiceras, och originalfotona lägger jag aldrig
-    i repot.
-  - Undvik tatueringar, ärr, ringar och klocka i bild om du inte vill att de syns i appen.
+- **Integritet:** texturen hamnar i det öppna repot och blir offentlig (CC0). Armen ska inte gå att
+  känna igen, så innan något publiceras gör jag följande:
+  - Fingeravtrycken: fingertopparnas papillarlinjer ersätts med ett påhittat mönster.
+  - Födelsemärken, leverfläckar, ärr, tatueringar, sår och andra unika märken målas bort och fylls med
+    omgivande hud. Modellens egna, påhittade födelsemärken läggs tillbaka på andra ställen.
+  - Venmönstret på handryggen och underarmen jämnas ut till ett allmänt mönster (venmönster kan vara
+    individuellt).
+  - Originalfotona läggs aldrig i repot. Du får se den färdiga texturen innan den publiceras.
+- **Ta av** ring, klocka och armband.
 - **Huden:** ingen kräm eller handsprit de senaste 30 minuterna. Det ger blanka fläckar som blir fel i
   texturen. Låt håret på underarmen vara som det är.
 - **Ärmen:** uppkavlad ovanför armbågen.
@@ -43,8 +47,9 @@ Armen ska ligga **som på modellen**: supinerad (handflatan uppåt) och avslappn
 lätt böjd och fingrarna lätt böjda. **Rör inte armen under en serie.** Fotografen flyttar kameran runt
 armen. Vrids armen ändras veck och hud, och då passar bilderna inte ihop.
 
-Om du fotograferar själv med vänster hand: lägg telefonen på självutlösare (3 s) eller använd en
-hörlurs volymknapp. Det går också bra att ta hjälp av någon.
+**Medhjälparen** håller kameran och flyttar sig runt armen. Du håller armen avslappnad och stilla hela
+serien. Be medhjälparen att hålla telefonen med båda händerna, andas ut innan varje bild och kontrollera
+skärpan genom att zooma in på bilden efteråt.
 
 ## Bilderna (32 stycken)
 
@@ -101,4 +106,4 @@ var mappen ligger. Komprimera inte bilderna och skicka dem inte via en chattapp 
 2. Placerar en kamera per bild i Blender så att modellens arm sammanfaller med armen på fotot.
 3. Projicerar fotona på armens egen UV (2K) och blandar dem efter hur rakt varje bild ser ytan.
 4. Tar bort ljus och skuggor som bakats in, och gör nya normal- och råhetskartor från bilderna.
-5. Ersätter fingertopparnas papillarlinjer och visar resultatet för dig innan något publiceras.
+5. Avidentifierar texturen (fingeravtryck, födelsemärken, ärr och venmönster, se ovan) och visar resultatet för dig innan något publiceras.

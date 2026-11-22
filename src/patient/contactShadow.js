@@ -4,7 +4,21 @@
 // bordsytan och läggs som en tunn yta på bordet (en draw call, ingen kostnad per bildruta).
 import * as THREE from 'three';
 
-export function createContactShadow(patientRoot, board, { maxHeight = 0.035, cell = 0.002 } = {}) {
+export function createContactShadow(patientRoot, board, opts = {}) {
+  let mesh = null;
+  const build = (dh = 0) => {
+    const next = computeShadow(patientRoot, { ...board, topHeight: board.topHeight + dh }, opts);
+    if (mesh) { mesh.material.map.dispose(); mesh.material.map = next.material.map; mesh.position.y = next.position.y; next.geometry.dispose(); }
+    else mesh = next;
+    return mesh;
+  };
+  build(0);
+  /** Räkna om skuggan när handbordet (och armen) flyttats dh meter. */
+  mesh.userData.update = (dh) => build(dh);
+  return mesh;
+}
+
+function computeShadow(patientRoot, board, { maxHeight = 0.035, cell = 0.002 } = {}) {
   const [cx, cz] = board.center;
   const axis = new THREE.Vector3(Math.sin(board.yaw), 0, Math.cos(board.yaw));   // längs bordet
   const across = new THREE.Vector3(Math.cos(board.yaw), 0, -Math.sin(board.yaw));
@@ -13,10 +27,13 @@ export function createContactShadow(patientRoot, board, { maxHeight = 0.035, cel
   const p = new THREE.Vector3(), rel = new THREE.Vector3();
   patientRoot.updateMatrixWorld(true);
   patientRoot.traverse((o) => {
-    if (!o.isMesh || !/^Skin_/.test(o.material?.name || '')) return;
+    if (!o.isMesh || o.material?.name !== 'Skin_Arm') return;     // underarm och hand
     const pos = o.geometry.attributes.position;
+    if (o.isSkinnedMesh) o.skeleton.update();
     for (let i = 0; i < pos.count; i++) {
-      p.fromBufferAttribute(pos, i).applyMatrix4(o.matrixWorld);   // viloställningen = ställningen
+      // hudad position (armen kan vara flyttad med handbordet)
+      if (o.isSkinnedMesh) o.getVertexPosition(i, p); else p.fromBufferAttribute(pos, i);
+      p.applyMatrix4(o.matrixWorld);
       const h = p.y - board.topHeight;
       if (h > maxHeight) continue;
       rel.set(p.x - cx, 0, p.z - cz);

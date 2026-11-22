@@ -103,5 +103,6 @@ def build(arm=None):
         box('ArmBoard', (a['length'], 0.2, 0.05), (a['center'][0], a['center'][1], a['top'] - 0.025),
             rot=(0, 0, a['yaw_blender']), material=uph, bevel=0.015)
         pl = out['pillow']
-        box('Pillow', (0.36, 0.48, pl['thickness']), Vector(pl['center']), rot=(0, th, 0), material=pillow_m, bevel=0.03)
+        if not bpy.data.objects.get('Pillow'):   # kudden följer annars med patienten (pillow.py)
+            box('Pillow', (0.36, 0.48, pl['thickness']), Vector(pl['center']), rot=(0, th, 0), material=pillow_m, bevel=0.03)
     return out

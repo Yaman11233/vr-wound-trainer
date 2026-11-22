@@ -125,11 +125,14 @@ export function brushedSteel() {
     const [c, ctx] = canvas(W, H);
     const img = ctx.createImageData(W, H);
     const r = rng(5);
+    // Borstat stål: mycket svaga, utjämnade streck. Starka rad-för-rad-skillnader i råheten gav
+    // synliga vågräta ränder i metallreflexen (även med mipmaps). Värdet är råheten direkt (0,30–0,40).
+    const raw = new Float32Array(H);
+    for (let y = 0; y < H; y++) raw[y] = r();
     const rows = new Float32Array(H);
-    for (let y = 0; y < H; y++) rows[y] = r();
+    for (let y = 0; y < H; y++) { let s = 0; for (let k = -4; k <= 4; k++) s += raw[(y + k + H) % H]; rows[y] = s / 9; }
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-      const streak = rows[y] * 0.6 + rows[(y + 1) % H] * 0.4;
-      const v = 95 + streak * 70 + (r() - 0.5) * 18;
+      const v = 255 * (0.35 + (rows[y] - 0.5) * 0.08 + (r() - 0.5) * 0.02);
       const i = (y * W + x) * 4;
       img.data[i] = img.data[i + 1] = img.data[i + 2] = v; img.data[i + 3] = 255;
     }

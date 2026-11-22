@@ -61,6 +61,8 @@ export async function createPatient(world, scenarioPatient, { renderer } = {}) {
     },
     flinch(strength = 1) { flinchAmp = Math.max(flinchAmp, THREE.MathUtils.clamp(strength, 0, 1)); flinchT = 0; },
     setFinger(name, flex) { impl.setFinger?.(name, flex); },
+    /** Handbordet höjt/sänkt dh meter från standardläget: armen följer med och ligger kvar an. */
+    setArmSupport(dh) { impl.setArmSupport?.(dh); },
     update(dt, viewerPos) {
       // Andning: inandning ca 40 % av cykeln, mjuk ut- och inandning.
       breathPhase += dt * breathRate / 60;
@@ -128,7 +130,7 @@ async function loadGlbPatient(url, renderer) {
   root.traverse((o) => {
     if (!o.isMesh) return;
     const m = o.material;
-    o.castShadow = !/Lashes|Brows|Cornea/.test(m.name);
+    o.castShadow = !/Lashes|Brows|Cornea|Pillow/.test(m.name);
     o.receiveShadow = true;
     if (m.name === 'Skin_Body' || m.name === 'Skin_Arm') {
       const arm = m.name === 'Skin_Arm';
@@ -242,6 +244,32 @@ async function loadGlbPatient(url, renderer) {
   const fingerTarget = Object.fromEntries(FINGERS.map((f) => [f, 0]));
   const fingerNow = Object.fromEntries(FINGERS.map((f) => [f, 0]));
 
+  // Handbordets höjd: överarmen roteras kring axelleden tills armbågen ändrat höjd lika mycket som
+  // bordet; underarmen behåller sin riktning i världen och ligger därför kvar plant mot bordet.
+  const upper = bone('upperarm_r'), lower = bone('lowerarm_r');
+  const armRest = upper && lower ? { qu: upper.quaternion.clone(), ql: lower.quaternion.clone() } : null;
+  function setArmSupport(dh) {
+    if (!armRest) return;
+    upper.quaternion.copy(armRest.qu); lower.quaternion.copy(armRest.ql);
+    root.updateMatrixWorld(true);
+    if (Math.abs(dh) < 1e-5) return;
+    const S = upper.getWorldPosition(new THREE.Vector3()), E = lower.getWorldPosition(new THREE.Vector3());
+    const v = E.clone().sub(S);
+    const k = new THREE.Vector3().crossVectors(v, new THREE.Vector3(0, 1, 0)).normalize();   // +vinkel lyfter armbågen
+    const elbowY = (phi) => S.y + v.clone().applyAxisAngle(k, phi).y;
+    let lo = -1.3, hi = 1.0;
+    for (let i = 0; i < 40; i++) { const mid = (lo + hi) / 2; if (elbowY(mid) < E.y + dh) lo = mid; else hi = mid; }
+    const rot = new THREE.Quaternion().setFromAxisAngle(k, (lo + hi) / 2);
+    const lowerWorld = lower.getWorldQuaternion(new THREE.Quaternion());
+    const upperWorld = upper.getWorldQuaternion(new THREE.Quaternion());
+    const parentInv = upper.parent.getWorldQuaternion(new THREE.Quaternion()).invert();
+    const upperNew = rot.multiply(upperWorld);
+    upper.quaternion.copy(parentInv.multiply(upperNew));
+    upper.updateMatrixWorld(true);
+    lower.quaternion.copy(upperNew.clone().invert().multiply(lowerWorld));
+    root.updateMatrixWorld(true);
+  }
+
   const woundAnchor = root.getObjectByName('WoundAnchor') || new THREE.Object3D();
   return {
     kind: 'glb',
@@ -258,6 +286,7 @@ async function loadGlbPatient(url, renderer) {
       }
     },
     setFinger(name, flex) { if (name in fingerTarget) fingerTarget[name] = THREE.MathUtils.clamp(flex, -0.2, 1); },
+    setArmSupport,
     look(dt, viewerPos) {
       // Fingrar mot målvärdet
       for (const f of FINGERS) {

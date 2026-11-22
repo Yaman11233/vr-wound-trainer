@@ -68,3 +68,12 @@ Varje beslut som avviker från eller kompletterar uppdragsbeskrivningen, med en 
 - **FPS-mätaren visas i datorläget bara i hörnet**, och som skylt i synfältet bara i VR.
 - **I datorläget flyttas fokus från startkortet till 3D-vyn.** Om en meny på startkortet hade kvar fokus gick tangenterna dit. Piltangenterna fungerar också, och även korta tryck räknas.
 - **Hudtexturen från foto väntar på dina bilder.** Instruktionen finns i `FOTOINSTRUKTION.md`. Fingertopparnas papillarlinjer ersätts alltid innan något publiceras.
+
+## Rättelser 23 november, andra omgången
+
+- **Fingrarna ligger i linje och lätt samlade** (spridning 2,5°/0°/-2,5°/-5°). Mellan- och ytterleden riktas in efter grundleden, så att lillfingret inte viker ut åt sidan.
+- **Kudden formas i Blender efter huvud, nacke och tröja och följer med patienten.** Den gamla kudden i rummet skar igenom skuldrorna.
+- **T-tröjan dras in mot huden inom 28 cm från höger axelled**, även tröjans sida under armen.
+- **Lampan står nästan rakt ovanför fältet.** Skuggan har intensitet 0,5 och liten bias, eftersom en undersökningslampa ger nästan skuggfritt ljus.
+- **Borstat stål har svaga, utjämnade streck**, och grovheten kommer helt från kartan. De tidigare ränderna kom från grovhetskartan, inte från någon normalkarta.
+- **Handbordet går att ställa i instruktörsläget, 0,95–1,25 m i steg om 2,5 cm (standard 1,10 m).** Överarmen roteras och underarmen behåller sin riktning, och kontaktskuggan räknas om.

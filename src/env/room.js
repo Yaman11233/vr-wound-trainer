@@ -102,7 +102,8 @@ export function buildRoom(world) {
   label(200, 60, 0.07, 0.021, textLabel('230 V', { bg: '#f2f2ee', font: 'bold 34px system-ui, sans-serif' }), { p: [0.11, 1.495, gz + 0.001] });
 
   buildBed(bc, m);
-  buildArmBoard(bc, m);
+  const boardMove = new StaticBatcher();
+  buildArmBoard(bc, boardMove, m);
   buildCart(bc, m);
   buildWoundCart(bc, m);
   buildWallDispensers(b, m, labels);
@@ -112,6 +113,11 @@ export function buildRoom(world) {
   buildPaperRoll(bc, m);
 
   const nStatic = b.build(world, { castShadow: false, receiveShadow: true, name: 'room' });
+  // Handbordets rörliga del (instruktören kan ändra höjden, se main.js).
+  const armBoard = new THREE.Group();
+  armBoard.name = 'armBoard';
+  boardMove.build(armBoard, { castShadow: true, receiveShadow: true, name: 'armBoard' });
+  world.add(armBoard);
   const nCast = bc.build(world, { castShadow: true, receiveShadow: true, name: 'furniture' });
   // etiketter: en mesh
   const lb = new StaticBatcher();
@@ -134,7 +140,7 @@ export function buildRoom(world) {
   const lamp = createExamLampHead(world, m);
 
   return {
-    monitor, clock, lamp,
+    monitor, clock, lamp, armBoard,
     stats: { staticMeshes: nStatic + nCast },
     update(dt, now) { monitor.update(dt, now); clock.update(); },
   };
@@ -233,39 +239,9 @@ function buildBed(b, m) {
     segment(b, m.steelDark, new THREE.Vector3(top[0], top[1], z + dz * width * 0.38),
       new THREE.Vector3(g.hingeX - 0.05, topHeight - 0.12, z + dz * width * 0.38), 0.012);
   }
-  // Kudde på ryggstödet: mjuk och rundad, smalare än britsen, med en grop under bakhuvudet.
-  const P = L.PILLOW;
-  const T = P.thickness + P.dent;                            // tjocklek utanför gropen
-  const pc = [g.hingeX + g.up[0] * P.along + g.n[0] * T / 2, topHeight + g.up[1] * P.along + g.n[1] * T / 2];
-  b.add(pillowGeometry(P.size[0], P.size[1], T, P.dentAlong, P.dentLateral, P.dent), m.pillow || m.paper,
-    { p: [pc[0], pc[1], P.z], r: [0, 0, -g.t] });
+  // Kudden följer med patientmodellen (formad efter huvud och skuldror i Blender, tools/blender/pillow.py).
   // Sidoskenor (rostfria) längs britsens långsidor, för tillbehör.
   for (const dz of [-1, 1]) b.add(BOX, m.steel, { p: [x, topHeight - 0.1, z + dz * (width / 2 + 0.02)], s: [length * 0.6, 0.03, 0.01] });
-}
-
-// Kudde som superellipsoid: platt topp, rundade kanter och en mjuk grop (lokal x = längs ryggstödet
-// mot fotänden, y = ut från ryggstödet, z = tvärs britsen).
-function pillowGeometry(len, wid, thick, dentX, dentZ, dentDepth) {
-  const geo = new THREE.SphereGeometry(1, 48, 24);
-  const pos = geo.attributes.position;
-  const se = (v, e) => Math.sign(v) * Math.pow(Math.abs(v), e);
-  for (let i = 0; i < pos.count; i++) {
-    let x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
-    x = se(x, 0.45) * len / 2; z = se(z, 0.4) * wid / 2;
-    y = se(y, 0.75) * thick / 2;
-    // fyllningen trycks ut mot mitten, kanterna sjunker lite
-    const edge = Math.max(Math.abs(x) / (len / 2), Math.abs(z) / (wid / 2));
-    y *= 1 - 0.18 * Math.pow(edge, 4);
-    if (y > 0) {
-      const d2 = ((x - dentX) ** 2) / (0.075 ** 2) + ((z - dentZ) ** 2) / (0.065 ** 2);
-      y -= dentDepth * Math.exp(-d2) * Math.min(1, y / (thick * 0.25));
-      // svaga veck i örngottet
-      y += 0.0015 * Math.sin(x * 60 + z * 25) * Math.sin(z * 40);
-    }
-    pos.setXYZ(i, x, y, z);
-  }
-  geo.computeVertexNormals();
-  return geo;
 }
 
 function buildPaperRoll(b, m) {
@@ -291,25 +267,28 @@ function buildPaperRoll(b, m) {
     { p: [c[0], c[1], z], r: [0, 0, -g.t] });
 }
 
-function buildArmBoard(b, m) {
-  // Fristående handbord (armbord) med höjdinställbar pelare och fot. Bordet följer armen.
+function buildArmBoard(b, mv, m) {
+  // Fristående handbord med teleskoppelare och fot. Fot och ytterrör står still (b); bordsskivan,
+  // innerröret och papperet (mv) flyttas när instruktören ändrar höjden. Bordet följer armen.
   const a = L.ARM_BOARD;
   const [cx, cz] = a.center;
   const yaw = a.yaw;
-  b.add(rbox(a.width, 0.05, a.length, 0.02), m.upholstery, { p: [cx, a.topHeight - 0.025, cz], r: [0, yaw, 0] });
-  b.add(BOX, m.steel, { p: [cx, a.topHeight - 0.062, cz], r: [0, yaw, 0], s: [0.07, 0.025, a.length * 0.85] });
-  // Pelare och fot under bordets mitt, med lite förskjutning mot användaren.
+  mv.add(rbox(a.width, 0.05, a.length, 0.02), m.upholstery, { p: [cx, a.topHeight - 0.025, cz], r: [0, yaw, 0] });
+  mv.add(BOX, m.steel, { p: [cx, a.topHeight - 0.062, cz], r: [0, yaw, 0], s: [0.07, 0.025, a.length * 0.85] });
+  mv.add(new THREE.PlaneGeometry(a.width * 0.9, a.length * 0.95), m.paper, { p: [cx, a.topHeight + 0.002, cz], r: [-Math.PI / 2, 0, yaw] });
+  // Pelare under bordets mitt, med lite förskjutning mot användaren.
   const col = [cx + Math.sin(yaw) * 0.08, cz + Math.cos(yaw) * 0.08];
-  b.add(CYL, m.steel, { p: [col[0], (a.topHeight - 0.075) / 2 + 0.06, col[1]], s: [0.022, a.topHeight - 0.135, 0.022] });
-  b.add(CYL, m.steelDark, { p: [col[0], 0.33, col[1]], s: [0.03, 0.42, 0.03] });
+  // innerrör: från bordets undersida 0,45 m nedåt (förblir inne i ytterröret i hela höjdintervallet)
+  mv.add(CYL, m.steel, { p: [col[0], a.topHeight - 0.075 - 0.225, col[1]], s: [0.022, 0.45, 0.022] });
+  // ytterrör med låsratt, och fot med fyra hjul
+  b.add(CYL, m.steelDark, { p: [col[0], 0.455, col[1]], s: [0.03, 0.79, 0.03] });
+  b.add(CYL8, m.plasticDark, { p: [col[0] + 0.035, 0.82, col[1]], r: [0, 0, Math.PI / 2], s: [0.012, 0.04, 0.012] });
   for (let k = 0; k < 4; k++) {
     const ang = k * Math.PI / 2 + Math.PI / 4 + yaw;
     const ex = col[0] + Math.cos(ang) * 0.24, ez = col[1] + Math.sin(ang) * 0.24;
     segment(b, m.steelDark, new THREE.Vector3(col[0], 0.07, col[1]), new THREE.Vector3(ex, 0.05, ez), 0.014);
     b.add(CYL, m.rubber, { p: [ex, 0.03, ez], r: [Math.PI / 2, 0, 0], s: [0.028, 0.022, 0.028] });
   }
-  // Pappersskydd på armbordet.
-  b.add(new THREE.PlaneGeometry(a.width * 0.9, a.length * 0.95), m.paper, { p: [cx, a.topHeight + 0.002, cz], r: [-Math.PI / 2, 0, yaw] });
 }
 
 function buildCart(b, m) {
@@ -397,9 +376,15 @@ function createExamLampHead(world, m) {
   spot.target.position.set(wx, wy, wz);
   spot.castShadow = true;
   spot.shadow.mapSize.set(1024, 1024);
-  spot.shadow.bias = -0.0004;
-  spot.shadow.normalBias = 0.01;
-  spot.shadow.camera.near = 0.2;
+  // Liten bias: med normalBias 1 cm lossnade fingrarnas skuggor från fingrarna och såg ut som
+  // ränder en bit ifrån handen (som om den svävade).
+  spot.shadow.bias = -0.00015;
+  spot.shadow.normalBias = 0.0015;
+  spot.shadow.radius = 4;
+  // En undersökningslampa har en stor ljuskälla (många lysdioder) och ger nästan skuggfritt ljus.
+  // En punktkälla ger för skarpa och mörka skuggor; dämpa och mjuka upp dem.
+  spot.shadow.intensity = 0.5;
+  spot.shadow.camera.near = 0.4;
   spot.shadow.camera.far = 3;
   world.add(spot, spot.target);
   return { group: g, light: spot };

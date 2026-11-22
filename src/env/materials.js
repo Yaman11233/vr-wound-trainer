@@ -25,7 +25,7 @@ export function materials() {
     lightPanel: std('lightPanel', { color: 0xffffff, emissive: 0xfffaf0, emissiveIntensity: 1.6, roughness: 0.4 }),
     skirting: std('skirting', { color: 0x8c8c86, roughness: 0.7 }),
     bumperRail: std('bumperRail', { color: 0xbfae94, roughness: 0.55 }), // stötskydd i trälaminat
-    steel: Object.assign(std('steel', { color: 0xc9cdd0, metalness: 1.0, roughness: 0.32, roughnessMap: steel.rough }), { userData: { worldUV: 0.35 } }),
+    steel: Object.assign(std('steel', { color: 0xc9cdd0, metalness: 1.0, roughness: 1.0, roughnessMap: steel.rough }), { userData: { worldUV: 0.35 } }), // råheten kommer helt från kartan (ca 0,35)
     steelDark: std('steelDark', { color: 0x8b9094, metalness: 1.0, roughness: 0.45 }),
     chrome: std('chrome', { color: 0xe6e8ea, metalness: 1.0, roughness: 0.12 }),
     plasticWhite: std('plasticWhite', { color: 0xeeeeea, roughness: 0.45 }),

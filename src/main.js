@@ -58,7 +58,22 @@ const { renderer, scene, camera, rig, world } = createStage($('app'));
 const room = buildRoom(world);
 const scenario = getScenario(ui.scenario.value);
 const patient = await createPatient(world, scenario.patient, { renderer });
-if (patient.kind === 'glb') world.add(createContactShadow(patient.root, ARM_BOARD));
+const contactShadow = patient.kind === 'glb' ? createContactShadow(patient.root, ARM_BOARD) : null;
+if (contactShadow) world.add(contactShadow);
+
+// Handbordets höjd (instruktören): 0,95–1,25 m i steg om 2,5 cm, standard 1,10 m.
+const BOARD = { step: 0.025, min: -6, max: 6, std: 1.10 };
+let boardSteps = 0;
+function setBoardSteps(n) {
+  boardSteps = Math.max(BOARD.min, Math.min(BOARD.max, n));
+  const dh = boardSteps * BOARD.step;
+  room.armBoard.position.y = dh;
+  patient.setArmSupport(dh);
+  contactShadow?.userData.update(dh);
+  bus.emit('armboard.height', { meters: boardHeight() });
+}
+const boardHeight = () => +(BOARD.std + boardSteps * BOARD.step).toFixed(3);
+const isInstructor = () => ui.mode.value === 'instructor';
 const input = createXRInput(renderer, rig);
 const fps = createFpsMeter({ camera, domEl: ui.fps });
 let baseHeight = 0;
@@ -69,6 +84,8 @@ const menu = createWristMenu({
   onToggleFps: () => fps.toggle(),
   onExit: () => exitVR(renderer),
   fpsOn: () => fps.on,
+  onArmBoard: (dir) => setBoardSteps(boardSteps + dir),
+  armBoardText: () => boardHeight().toFixed(3).replace(/0$/, '').replace('.', ','),
 });
 
 const desktop = createDesktopControls({
@@ -76,6 +93,9 @@ const desktop = createDesktopControls({
   onKey: (k) => {
     if (k === 'f') fps.toggle();
     if (k === 'escape') showStart();
+    // handbordets höjd i instruktörsläget: + och -
+    if (isInstructor() && (k === '+' || k === '=')) setBoardSteps(boardSteps + 1);
+    if (isInstructor() && k === '-') setBoardSteps(boardSteps - 1);
   },
 });
 
@@ -161,7 +181,7 @@ desktop.setEnabled(false);
 console.info('[app] klar', { staticMeshes: room.stats.staticMeshes, patient: patient.kind });
 
 // För felsökning i konsolen.
-Object.assign(window, { __app: { renderer, scene, camera, rig, world, patient, room, bus, time, desktop, fps, menu, input } });
+Object.assign(window, { __app: { renderer, scene, camera, rig, world, patient, room, bus, time, desktop, fps, menu, input, setBoardSteps, boardHeight } });
 
 async function installEmulator() {
   try {

@@ -333,13 +333,26 @@ def spread_report(side, local):
         out[f] = round(math.degrees(math.atan2(d.dot(across), d.dot(hd))), 1)
     return out
 
-SPREAD = {'index': 5, 'middle': 0, 'ring': -5, 'pinky': -11}   # grader mot radialsidan
+def straighten(side, local, fingers):
+    """Rikta mellan- och ytterleden i linje med grundleden i handflatans plan (ingen sidoböjning)."""
+    for f in fingers:
+        for j in ('02', '03'):
+            hd, across, pn = palm_frame(side, local)
+            pb = PB[f'{f}_{j}_{side}']; parent = PB[f'{f}_0{int(j) - 1}_{side}']
+            d = bdir(pb); d = (d - pn * d.dot(pn)).normalized()
+            dp = bdir(parent); dp = (dp - pn * dp.dot(pn)).normalized()
+            ang = math.atan2(d.dot(across), d.dot(hd)) - math.atan2(dp.dot(across), dp.dot(hd))
+            rot_world(pb, Quaternion(hd.cross(across).normalized(), -ang))
+
+# Lätt samlade fingrar: liten spridning, så att gliporna mellan fingrarna stängs.
+SPREAD = {'index': 2.5, 'middle': 0, 'ring': -2.5, 'pinky': -5}   # grader mot radialsidan
 adduct('r', palm_r, SPREAD)
+straighten('r', palm_r, ['index', 'middle', 'ring', 'pinky'])
 print('SPREAD r', spread_report('r', palm_r))
 curl('r', palm_r, ['index'], (7, 12, 6))
 curl('r', palm_r, ['middle'], (10, 17, 8))
 curl('r', palm_r, ['ring'], (14, 22, 10))
-curl('r', palm_r, ['pinky'], (18, 27, 13))
+curl('r', palm_r, ['pinky'], (16, 25, 12))
 # Tummen avslappnad: längs pekfingrets radialsida, lätt lyft från handflatans plan.
 hd, across, pn = palm_frame('r', palm_r)
 aim('thumb_01_r', hd * 0.62 + across * 0.62 + pn * 0.12)
@@ -362,7 +375,8 @@ for it in range(3):
 aim('upperarm_l', d_feet * math.cos(math.radians(14)) + lat_l * math.sin(math.radians(14)) - n_back * 0.08)
 aim('lowerarm_l', Vector((1, 0.12, -0.18)))
 aim('hand_l', Vector((1, 0.05, -0.2)))
-adduct('l', palm_l, {'index': 5, 'middle': 0, 'ring': -5, 'pinky': -11})
+adduct('l', palm_l, SPREAD)
+straighten('l', palm_l, ['index', 'middle', 'ring', 'pinky'])
 curl('l', palm_l, ['index', 'middle', 'ring', 'pinky'], (12, 20, 10))
 
 # ---------------------------------------------------------------- 6. placera mot madrass och ryggstöd
@@ -439,6 +453,30 @@ bpy.ops.object.mode_set(mode='OBJECT')
 for o in meshes:
     m = o.modifiers.new('Armature', 'ARMATURE'); m.object = arm
 upd()
+
+# ---------------------------------------------------------------- 7b. t-tröjan i höger armhåla
+# När armen förs ut 75° sträcks tröjans undersida och står ut som en flik under armhålan.
+# Dra tygets hörn inom 28 cm från axelleden (även tröjans sida under armen) in mot huden,
+# mjukt avtagande från 18 cm.
+from mathutils.bvhtree import BVHTree
+dg = bpy.context.evaluated_depsgraph_get()
+tree = BVHTree.FromObject(body, dg)
+S = arm.matrix_world @ arm.data.bones['upperarm_r'].head_local
+kb = clothes.data.shape_keys.key_blocks if clothes.data.shape_keys else []
+moved = 0
+for v in clothes.data.vertices:
+    p = clothes.matrix_world @ v.co
+    r = (p - S).length
+    if r > 0.28: continue
+    loc, nor, idx, dist = tree.find_nearest(p)
+    if loc is None or dist < 0.012: continue
+    w = 1.0 if r < 0.18 else 1.0 - (r - 0.18) / 0.10
+    target = loc + nor * 0.006
+    delta = clothes.matrix_world.inverted().to_3x3() @ ((target - p) * w)
+    v.co += delta
+    for k in kb: k.data[v.index].co += delta
+    moved += 1
+print('AXILLA shirt verts moved', moved)
 
 # ---------------------------------------------------------------- 8. ögonen som egna, roterbara objekt
 eyes = by('high-poly')

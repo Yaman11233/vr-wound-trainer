@@ -25,11 +25,6 @@ export const BED = {
 // Värdena nedan kommer från patientbygget i Blender (tools/blender, bed_fit.json och
 // step2_report.json) och måste ändras tillsammans med patientens ställning.
 
-// Kudde på ryggstödet: along = mittens avstånd från gångjärnet längs ryggstödet, z = tvärs britsen,
-// thickness = hoptryckt tjocklek under bakhuvudet, dent = gropens djup, size = längd × bredd,
-// dentAlong/dentLateral = gropens mitt relativt kuddens mitt (längs ryggstödet mot fotänden / tvärs).
-export const PILLOW = { along: 0.76, z: -1.25, thickness: 0.012, dent: 0.045, size: [0.38, 0.46], dentAlong: -0.067, dentLateral: -0.045 };
-
 // Armbordet (fristående handbord) under höger underarm och hand. Armen är abducerad ca 75°,
 // överarmen sluttar 12° och armbågen är böjd ca 14°, så bordet står högre än madrassen och är
 // vridet längs underarmen. Huden sjunker ca 2,5 mm in i dynan.
@@ -64,7 +59,7 @@ export const SANITIZER = { position: [ROOM.minX, 1.15, 0.25] };                 
 export const GLOVE_HOLDER = { position: [ROOM.minX, 1.3, -0.3] };                          // handskhållare (S/M/L)
 export const SHARPS = { position: [0.84, CART.height, -0.56] };                            // kanylburk på vagnen
 export const BINS = { general: [1.85, -0.75], infectious: [1.85, -0.35] };                 // avfall
-export const EXAM_LAMP = { mount: [-0.6, 2.05, ROOM.minZ], head: [-0.5, 1.85, -0.95] };   // undersökningslampa
+export const EXAM_LAMP = { mount: [-0.6, 2.05, ROOM.minZ], head: [-0.26, 1.95, -0.60] };  // nästan rakt ovanför operationsfältet   // undersökningslampa
 export const CLOCK = { position: [1.0, 2.0, ROOM.minZ] };
 export const SINK = { position: [1.4, ROOM.maxZ] };
 export const DOOR = { x: ROOM.maxX, zCenter: -1.25, width: 1.2, height: 2.1 };
