@@ -7,7 +7,7 @@ En medicinsk träningsapp i VR (WebXR) för Meta Quest 3. Övningen gäller blö
 - Öppna adressen i Quest-webbläsaren och tryck på **Gå in i VR**.
 - På datorn: **Datorläge**, eller lägg till `?iwer=1` i adressen för att köra VR-flödet i Immersive Web Emulator.
 
-Status: **etapp 1 av 7** (rum, patient som platshållare, XR-start, datorläge). Se `HANDOFF.md`.
+Status: **etapp 1 av 7 + realistisk patient** (rum, MPFB2-patient, XR-start, datorläge). Se `HANDOFF.md`.
 
 ## Köra lokalt
 
@@ -43,7 +43,9 @@ src/assets/           proctex.js (procedurella texturer, ersätts senare)
 scenarios/            ett scenario per fil + index.js
 config/medical.js     alla medicinska värden med källa och granskningsstatus
 vendor/               three.js r187 och IWER 2.8 (MIT)
-assets/models/        handmodeller (W3C webxr-input-profiles, MIT); patient kommer hit
+assets/models/        handmodeller (W3C webxr-input-profiles, MIT) och patienten (CC0, se ASSETS.md)
+tools/blender/        skript som bygger patienten i Blender + MPFB2
+screenshots/patient/  renderingar (Blender) och skärmbilder (appen) för granskning
 ```
 
 ## Lägga till ett nytt scenario
@@ -55,23 +57,55 @@ assets/models/        handmodeller (W3C webxr-input-profiles, MIT); patient komm
 
 Fälten `phases` (steg, villkor, tillåtna ordningar, bedömning) fylls i från etapp 4, när scenariomotorn finns. Då utökas det här avsnittet med ett fullständigt exempel.
 
-## Byta patientmodell
+## Patienten
 
-Lägg GLB-filen i `assets/models/patient/` och ange sökvägen i scenariofilens `patient.model`. Appen letar efter följande (allt valfritt):
+Patienten (`assets/models/patient/patient.glb`) byggs med skript i Blender från MPFB 2 och MakeHumans
+CC0-tillgångar. Källor och licenser finns i `ASSETS.md`.
 
-- noden `WoundAnchor`: där såret sätts fast (volarsidan, distala underarmen)
-- noden `HeadPivot`: vrids för att följa läkaren med blicken
-- morph targets `blink` och `breath`
-- ett material vars namn innehåller `skin` eller `body`: färgas vid blekhet och svettning
+### Bygga om patienten
 
-Saknas filen eller går den inte att ladda används platshållaren.
+Det här behövs:
+
+- Blender 5.1 med tillägget MPFB 2 (Edit → Preferences → Get Extensions → "MPFB")
+- MakeHumans CC0-paket uppackade i MPFB:s användarmapp (`%APPDATA%\Blender Foundation\Blender\5.1\extensions\.user\blender_org\mpfb\data`): makehuman_system_assets, skins02, underwear04 och faceunits01
+- Node (för `npx @gltf-transform/cli@4`) och `toktx` från KTX-Software 4.4 i PATH
+
+Kör sedan i Git Bash:
+
+```bash
+tools/blender/build_all.sh        # steg 1–4: kropp, ställning, texturer, material, export
+tools/blender/compress.sh         # KTX2 + meshopt till assets/models/patient/
+```
+
+Arbetsfilerna (.blend, bakade kartor, loggar) hamnar i `../patient-work` utanför repot. Varje steg kan köras
+för sig, t.ex. `build_all.sh 4` för att börja om från textursteget.
+
+| Skript | Vad det gör |
+|---|---|
+| `step1_human.py` | Fenotyp (ålder, kön, längd, vikt), ansiktets drag och asymmetrier, ögon, hår, kläder, rigg |
+| `step2_pose.py` | Uttryck och andning som shape keys, halvsittande ställning på britsen, ögon som egna noder, sårankare |
+| `step3a_prep.py` | Tar bort dold hud, delar upp armen (Catmull-Clark), egen UV för armen, bakar datakartor |
+| `step3b_textures.py` | Hudens detaljer och masker (se ASSETS.md) |
+| `step3c_materials.py` | Material för glTF och Cycles |
+| `step4_export.py` | GLB-export |
+| `render_final.py` | Cycles-renderingar för granskning |
+
+Britsens mått finns både i `src/env/layout.js` och i `tools/blender/bed.py`. Ändras ställningen, kopiera
+de nya värdena för kudde, armbord och sår från `patient-work/bed_fit.json` och `step2_report.json` till
+`layout.js`.
+
+### Vad appen använder i modellen
+
+- **Noder:** `WoundAnchor` (sårets mitt; lokal +Y = hudens normal, +X = mot handen), `Eye_L` och `Eye_R` (extras `fwd` = blickriktning i vila), skelettets ben `head`, `neck_01` och fingrarnas `*_0[123]_r`
+- **Morph targets:** `blink_L`, `blink_R`, `worried`, `pain`, `breath_chest`, `breath_abd`
+- **Material:** `Skin_Body` och `Skin_Arm` får hudshadern (`src/patient/skinShader.js`) med maskerna `body_masks.ktx2`/`arm_masks.ktx2` och porkaklet `skin_detail_normal.ktx2`. `Hair`, `Brows` och `Lashes` ritas med alpha-to-coverage, och `Cornea` additivt.
+
+Saknas filen eller går den inte att ladda används en enkel platshållare.
 
 ## Händelsebuss
 
-Moduler kommunicerar via `bus.emit(namn, data)`. Bedömningen (etapp 4) lyssnar med `bus.onAny`. Händelser i etapp 1: `patient.ready`, `session.started`, `session.ended`, `input.connected`, `input.disconnected`, `input.selectstart`, `input.selectend`, `view.recentered`.
+Moduler kommunicerar via `bus.emit(namn, data)`. Bedömningen (etapp 4) lyssnar med `bus.onAny`. Händelser hittills: `patient.ready`, `session.started`, `session.ended`, `input.connected`, `input.disconnected`, `input.selectstart`, `input.selectend`, `view.recentered`.
 
 ## Licenser
 
-- three.js: MIT (`vendor/three/LICENSE`)
-- Immersive Web Emulation Runtime: MIT (`vendor/iwer/LICENSE`)
-- Generiska handmodeller: MIT (`assets/models/hands/LICENSE-webxr-input-profiles.md`)
+Se `ASSETS.md`.

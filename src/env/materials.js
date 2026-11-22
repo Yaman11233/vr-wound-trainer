@@ -32,6 +32,7 @@ export function materials() {
     plasticDark: std('plasticDark', { color: 0x2b2f33, roughness: 0.45 }),
     rubber: std('rubber', { color: 0x1c1d1f, roughness: 0.85 }),
     upholstery: std('upholstery', { color: 0x2f4253, roughness: 0.55, normalMap: uph.normal, normalScale: new THREE.Vector2(0.4, 0.4) }),
+    pillow: std('pillow', { color: 0xe4e8ec, roughness: 0.92, normalMap: paper.normal, normalScale: new THREE.Vector2(0.25, 0.25) }),
     paper: std('paper', { color: 0xf6f5f0, roughness: 0.95, normalMap: paper.normal, normalScale: new THREE.Vector2(0.6, 0.6), side: THREE.DoubleSide }),
     sharpsYellow: std('sharpsYellow', { color: 0xf2c400, roughness: 0.5 }),
     sharpsLid: std('sharpsLid', { color: 0xd23b2a, roughness: 0.45 }),

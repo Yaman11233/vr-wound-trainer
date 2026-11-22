@@ -181,9 +181,19 @@ export function buildRoom(world) {
   }
 }
 
+function backrestGeom() {
+  // Ryggstödet roterar kring ett gångjärn i madrassens ovankant. up = längs ytan mot huvudet,
+  // n = ut från ytan. Båda i (x, y)-planet.
+  const { headX, topHeight, backrest } = L.BED;
+  const t = THREE.MathUtils.degToRad(backrest.deg);
+  const hingeX = headX + backrest.length;
+  return { t, hingeX, up: [-Math.cos(t), Math.sin(t)], n: [Math.sin(t), Math.cos(t)], top: topHeight, len: backrest.length };
+}
+
 function buildBed(b, m) {
   const [x, z] = L.BED.center;
-  const { length, width, topHeight } = L.BED;
+  const { length, width, topHeight, headX } = L.BED;
+  const g = backrestGeom();
   // Underrede: grå pelare (hydraulik) och fot med fyra hjul.
   b.add(BOX, m.plasticGrey, { p: [x, 0.11, z], s: [length * 0.75, 0.08, width * 0.7] });
   b.add(BOX, m.steelDark, { p: [x, 0.4, z], s: [0.22, 0.5, 0.22] });
@@ -192,45 +202,71 @@ function buildBed(b, m) {
     b.add(CYL, m.rubber, { p: [px, 0.055, pz], r: [Math.PI / 2, 0, 0], s: [0.05, 0.04, 0.05] });
     b.add(BOX, m.steelDark, { p: [px, 0.1, pz], s: [0.04, 0.06, 0.04] });
   }
-  // Ram och liggyta.
+  // Ram.
   b.add(BOX, m.steel, { p: [x, topHeight - 0.12, z], s: [length, 0.05, width] });
-  b.add(rbox(length, 0.08, width, 0.03), m.upholstery, { p: [x, topHeight - 0.04, z] });
-  // Kudde vid huvudändan, med papper ovanpå (papperet täcker hela liggytan).
-  b.add(rbox(0.36, 0.08, 0.5, 0.035, 3), m.upholstery, { p: [L.BED.headX + 0.22, topHeight + 0.035, z] });
+  // Sittdel (fotänden) och höjt ryggstöd (huvudänden), klädda i samma dyna.
+  const seatLen = headX + length - g.hingeX;
+  b.add(rbox(seatLen, 0.08, width, 0.03), m.upholstery, { p: [g.hingeX + seatLen / 2, topHeight - 0.04, z] });
+  const bc = [g.hingeX + g.up[0] * g.len / 2 - g.n[0] * 0.04, topHeight + g.up[1] * g.len / 2 - g.n[1] * 0.04];
+  b.add(rbox(g.len, 0.08, width, 0.03), m.upholstery, { p: [bc[0], bc[1], z], r: [0, 0, -g.t] });
+  // Ryggstödets ram och stag ned till britsens ram.
+  const fc = [g.hingeX + g.up[0] * g.len / 2 - g.n[0] * 0.095, topHeight + g.up[1] * g.len / 2 - g.n[1] * 0.095];
+  b.add(BOX, m.steel, { p: [fc[0], fc[1], z], r: [0, 0, -g.t], s: [g.len * 0.95, 0.03, width * 0.9] });
+  for (const dz of [-1, 1]) {
+    const top = [g.hingeX + g.up[0] * g.len * 0.62 - g.n[0] * 0.1, topHeight + g.up[1] * g.len * 0.62 - g.n[1] * 0.1];
+    segment(b, m.steelDark, new THREE.Vector3(top[0], top[1], z + dz * width * 0.38),
+      new THREE.Vector3(g.hingeX - 0.05, topHeight - 0.12, z + dz * width * 0.38), 0.012);
+  }
+  // Kudde på ryggstödet under bakhuvudet.
+  const P = L.PILLOW;
+  b.add(rbox(P.size[0], P.thickness, P.size[1], Math.min(0.03, P.thickness * 0.45), 3), m.pillow || m.paper,
+    { p: P.center, r: [0, 0, -g.t] });
   // Sidoskenor (rostfria) längs britsens långsidor, för tillbehör.
   for (const dz of [-1, 1]) b.add(BOX, m.steel, { p: [x, topHeight - 0.1, z + dz * (width / 2 + 0.02)], s: [length * 0.6, 0.03, 0.01] });
 }
 
 function buildPaperRoll(b, m) {
-  // Pappersrulle i hållare vid fotändan och ett pappersskydd över liggytan.
+  // Pappersrulle i hållare vid fotändan och ett pappersskydd över sittdel och ryggstöd.
   const [x, z] = L.BED.center;
-  const { length, width, topHeight } = L.BED;
+  const { length, width, topHeight, headX } = L.BED;
+  const g = backrestGeom();
   const fx = x + length / 2 + 0.05;
   b.add(CYL, m.paper, { p: [fx, topHeight - 0.03, z], r: [Math.PI / 2, 0, 0], s: [0.05, width * 0.8, 0.05] });
   for (const dz of [-1, 1]) b.add(BOX, m.steel, { p: [fx, topHeight - 0.06, z + dz * width * 0.42], s: [0.02, 0.1, 0.01] });
-  // Pappersskydd: en tunn, lätt skrynklig yta som följer madrassen och kudden.
-  const paper = new THREE.PlaneGeometry(length - 0.06, width * 0.82, 40, 8);
-  const pos = paper.attributes.position;
-  for (let i = 0; i < pos.count; i++) {
-    const px = pos.getX(i);
-    // höj papperet över kudden
-    const headDist = px - (-length / 2 + 0.22);
-    const pillow = Math.max(0, 1 - Math.abs(headDist) / 0.2) * 0.075;
-    pos.setZ(i, pillow + 0.002 + Math.sin(i * 1.7) * 0.0012);
-  }
-  paper.computeVertexNormals();
-  b.add(paper, m.paper, { p: [x - 0.01, topHeight + 0.001, z], r: [-Math.PI / 2, 0, 0] });
+  const crinkle = (geo) => {
+    const pos = geo.attributes.position;
+    for (let i = 0; i < pos.count; i++) pos.setZ(i, 0.0015 + Math.sin(i * 1.7) * 0.0012);
+    geo.computeVertexNormals(); return geo;
+  };
+  const seatLen = headX + length - g.hingeX - 0.03;
+  b.add(crinkle(new THREE.PlaneGeometry(seatLen, width * 0.82, 24, 8)), m.paper,
+    { p: [g.hingeX + 0.01 + seatLen / 2, topHeight + 0.001, z], r: [-Math.PI / 2, 0, 0] });
+  const bl = g.len - 0.03;
+  const c = [g.hingeX + g.up[0] * (bl / 2 + 0.01) + g.n[0] * 0.001, topHeight + g.up[1] * (bl / 2 + 0.01) + g.n[1] * 0.001];
+  // planet läggs först ned (normal +Y, längd längs X) och vrids sedan som ryggstödet
+  b.add(crinkle(new THREE.PlaneGeometry(bl, width * 0.82, 20, 8)).rotateX(-Math.PI / 2), m.paper,
+    { p: [c[0], c[1], z], r: [0, 0, -g.t] });
 }
 
 function buildArmBoard(b, m) {
+  // Fristående handbord (armbord) med höjdinställbar pelare och fot. Bordet följer armen.
   const a = L.ARM_BOARD;
-  const len = a.zNear - a.zFar;
-  const cz = (a.zNear + a.zFar) / 2;
-  b.add(rbox(a.width, 0.05, Math.abs(len), 0.02), m.upholstery, { p: [a.x, a.topHeight - 0.025, cz] });
-  b.add(BOX, m.steel, { p: [a.x, a.topHeight - 0.065, cz], s: [0.06, 0.03, Math.abs(len) * 0.9] });
-  b.add(BOX, m.steel, { p: [a.x, a.topHeight - 0.08, a.zFar - 0.05], s: [0.08, 0.04, 0.14] });   // fäste i skenan
+  const [cx, cz] = a.center;
+  const yaw = a.yaw;
+  b.add(rbox(a.width, 0.05, a.length, 0.02), m.upholstery, { p: [cx, a.topHeight - 0.025, cz], r: [0, yaw, 0] });
+  b.add(BOX, m.steel, { p: [cx, a.topHeight - 0.062, cz], r: [0, yaw, 0], s: [0.07, 0.025, a.length * 0.85] });
+  // Pelare och fot under bordets mitt, med lite förskjutning mot användaren.
+  const col = [cx + Math.sin(yaw) * 0.08, cz + Math.cos(yaw) * 0.08];
+  b.add(CYL, m.steel, { p: [col[0], (a.topHeight - 0.075) / 2 + 0.06, col[1]], s: [0.022, a.topHeight - 0.135, 0.022] });
+  b.add(CYL, m.steelDark, { p: [col[0], 0.33, col[1]], s: [0.03, 0.42, 0.03] });
+  for (let k = 0; k < 4; k++) {
+    const ang = k * Math.PI / 2 + Math.PI / 4 + yaw;
+    const ex = col[0] + Math.cos(ang) * 0.24, ez = col[1] + Math.sin(ang) * 0.24;
+    segment(b, m.steelDark, new THREE.Vector3(col[0], 0.07, col[1]), new THREE.Vector3(ex, 0.05, ez), 0.014);
+    b.add(CYL, m.rubber, { p: [ex, 0.03, ez], r: [Math.PI / 2, 0, 0], s: [0.028, 0.022, 0.028] });
+  }
   // Pappersskydd på armbordet.
-  b.add(new THREE.PlaneGeometry(a.width * 0.9, Math.abs(len) * 0.95), m.paper, { p: [a.x, a.topHeight + 0.002, cz], r: [-Math.PI / 2, 0, 0] });
+  b.add(new THREE.PlaneGeometry(a.width * 0.9, a.length * 0.95), m.paper, { p: [cx, a.topHeight + 0.002, cz], r: [-Math.PI / 2, 0, yaw] });
 }
 
 function buildCart(b, m) {
@@ -313,7 +349,7 @@ function createExamLampHead(world, m) {
   g.add(shell, lens);
   world.add(g);
 
-  const spot = new THREE.SpotLight(0xfff6e8, 9, 3, THREE.MathUtils.degToRad(26), 0.55, 1.6);
+  const spot = new THREE.SpotLight(0xfff6e8, 5, 3, THREE.MathUtils.degToRad(26), 0.55, 1.6);
   spot.position.set(hx, hy, hz);
   spot.target.position.set(wx, wy, wz);
   spot.castShadow = true;

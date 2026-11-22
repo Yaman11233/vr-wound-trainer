@@ -3,3 +3,4 @@
 *.wasm binary
 *.png binary
 *.ktx2 binary
+*.jpg binary

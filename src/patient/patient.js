@@ -1,125 +1,298 @@
-// Patienten: laddar riktig modell om den finns, annars platshållaren.
-// Gemensamt gränssnitt för båda:
-//   patient.anchors.wound      Object3D där såret sätts fast (etapp 3)
-//   patient.setBreathRate(n)   andetag per minut (från fysiologin)
-//   patient.setSkinState({ pallor, sweat })   0..1, blekhet och svettning
-//   patient.update(dt, viewerWorldPos)        andning, blinkning, blick
+// Patienten: laddar MPFB2-modellen (GLB) om scenariot anger en, annars platshållaren.
+// Gemensamt gränssnitt:
+//   patient.anchors.wound            Object3D där såret sätts fast (följer underarmen)
+//   patient.setBreathRate(n)         andetag per minut (från fysiologin)
+//   patient.setBreathDepth(x)        0..1.5, andetagets djup (1 = lugnt andetag)
+//   patient.setSkinState({ pallor, sweat })   0..1, blekhet och svettning (shader-parametrar)
+//   patient.setExpression({ worried, pain })  0..1, ansiktsuttryck som basnivå
+//   patient.flinch(strength)         kort smärtgrimas, t.ex. vid tryck på såret eller stick
+//   patient.setFinger(name, flex)    höger hand; name = thumb|index|middle|ring|pinky, flex -0.2..1
+//   patient.update(dt, viewerWorldPos)        andning, blinkning, uttryck, huvud och blick
 //
-// Byta modell: lägg en GLB i assets/models/patient/ och ange sökvägen i
-// scenariofilens patient.model. Se README.md
-// för vilka nodnamn och morph targets som används.
+// Modellen byggs med skripten i tools/blender (se README.md). Den innehåller ett skelett
+// (game_engine-riggen), morph targets blink_L, blink_R, worried, pain, breath_chest och
+// breath_abd, noderna Eye_L/Eye_R (med blickriktning i vila som extras.fwd) och WoundAnchor.
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { buildPlaceholderPatient } from './placeholder.js';
+import { makeSkinMaterial } from './skinShader.js';
 import { bus } from '../core/bus.js';
 
+const FINGERS = ['thumb', 'index', 'middle', 'ring', 'pinky'];
+// Största böjning per led (grader): grundled, mellanled, ytterled. Tummen: CMC/MCP/IP förenklat.
+const FLEX_MAX = { thumb: [45, 55, 70], index: [80, 100, 70], middle: [85, 100, 70], ring: [85, 100, 70], pinky: [85, 100, 70] };
 
-export async function createPatient(world, scenarioPatient) {
+let ktx2 = null;
+
+export async function createPatient(world, scenarioPatient, { renderer } = {}) {
   const url = scenarioPatient?.model;
-  let impl = url ? await tryLoadGlb(url).catch((err) => { console.info('[patient] ingen GLB, använder platshållare', err?.message); return null; }) : null;
-  if (!impl) impl = buildPlaceholderPatient(scenarioPatient);
+  let impl = null;
+  if (url) {
+    impl = await loadGlbPatient(url, renderer).catch((err) => {
+      console.warn('[patient] kunde inte ladda modellen, använder platshållare', err);
+      return null;
+    });
+  }
+  if (!impl) impl = placeholderImpl(scenarioPatient);
   world.add(impl.root);
 
   let breathRate = scenarioPatient?.baseline?.rr ?? 16;
+  let breathDepth = 1;
   let breathPhase = 0;
-  let nextBlink = 2 + Math.random() * 3;
-  let blinkT = -1;
-  const skinPale = new THREE.Color(0xd8c6bd);
-  const skinNow = new THREE.Color();
-  const tmp = new THREE.Vector3();
-  const headTarget = new THREE.Quaternion();
-  const eyeTarget = new THREE.Quaternion();
-  const BLINK_DUR = 0.15;
+  let nextBlink = 1.5 + Math.random() * 3;
+  let blinkT = -1, doubleBlink = false;
+  const BLINK_DOWN = 0.07, BLINK_UP = 0.16;
+  const base = { worried: scenarioPatient?.affect === 'anxious' ? 0.35 : 0, pain: 0 };
+  const expr = { worried: base.worried, pain: 0 };
+  let flinchT = 0, flinchAmp = 0;
 
   const api = {
     root: impl.root,
     anchors: impl.anchors,
-    kind: impl.kind || 'placeholder',
+    kind: impl.kind,
     setBreathRate(n) { breathRate = Math.max(0, Math.min(n, 60)); },
-    setSkinState({ pallor = 0, sweat = 0 } = {}) {
-      if (!impl.skin) return;
-      skinNow.copy(impl.skinBase).lerp(skinPale, THREE.MathUtils.clamp(pallor, 0, 1));
-      impl.skin.color.copy(skinNow);
-      impl.skin.roughness = THREE.MathUtils.lerp(0.55, 0.28, THREE.MathUtils.clamp(sweat, 0, 1));
+    setBreathDepth(x) { breathDepth = THREE.MathUtils.clamp(x, 0, 1.5); },
+    setSkinState({ pallor = 0, sweat = 0 } = {}) { impl.setSkin?.(pallor, sweat); },
+    setExpression({ worried, pain } = {}) {
+      if (worried !== undefined) base.worried = THREE.MathUtils.clamp(worried, 0, 1);
+      if (pain !== undefined) base.pain = THREE.MathUtils.clamp(pain, 0, 1);
     },
+    flinch(strength = 1) { flinchAmp = Math.max(flinchAmp, THREE.MathUtils.clamp(strength, 0, 1)); flinchT = 0; },
+    setFinger(name, flex) { impl.setFinger?.(name, flex); },
     update(dt, viewerPos) {
-      // Andning: bröst och buk höjs. Inandning ca 40 % av cykeln.
+      // Andning: inandning ca 40 % av cykeln, mjuk ut- och inandning.
       breathPhase += dt * breathRate / 60;
       const c = breathPhase % 1;
-      const s = c < 0.4 ? Math.sin(c / 0.4 * Math.PI / 2) : Math.cos((c - 0.4) / 0.6 * Math.PI / 2);
-      const p = impl.parts;
-      if (p?.chestPivot) p.chestPivot.scale.y = 1 + 0.045 * s;
-      if (p?.abdPivot) p.abdPivot.scale.y = 1 + 0.03 * s;
-      impl.morph?.('breath', s);
+      const s = (c < 0.4 ? Math.sin(c / 0.4 * Math.PI / 2) : Math.cos((c - 0.4) / 0.6 * Math.PI / 2)) * breathDepth;
+      impl.breath?.(s);
 
-      // Blinkning var 2–6 s.
+      // Blinkning: oregelbundet var 2–6 s, ibland dubbelblink.
       nextBlink -= dt;
-      if (nextBlink <= 0 && blinkT < 0) { blinkT = 0; nextBlink = 2 + Math.random() * 4; }
+      if (nextBlink <= 0 && blinkT < 0) {
+        blinkT = 0; doubleBlink = Math.random() < 0.15;
+        nextBlink = 1.8 + Math.random() * 4.5;
+      }
       let lid = 0;
       if (blinkT >= 0) {
         blinkT += dt;
-        lid = Math.sin(Math.min(blinkT / BLINK_DUR, 1) * Math.PI);
-        if (blinkT > BLINK_DUR) blinkT = -1;
-      }
-      if (p?.eyes) for (const e of p.eyes) e.ball.scale.y = 1 - 0.92 * lid;
-      impl.morph?.('blink', lid);
-
-      // Blick: huvudet vrids mot användaren (begränsat), ögonen följer resten.
-      if (viewerPos && p?.headPivot) {
-        const hp = p.headPivot;
-        hp.parent.updateMatrixWorld();
-        tmp.copy(viewerPos);
-        hp.parent.worldToLocal(tmp);
-        tmp.sub(hp.position);
-        // huvudets "framåt" är +Y; vridning kring X (sidled) och Z (nick)
-        const roll = THREE.MathUtils.clamp(Math.atan2(tmp.z, tmp.y), -0.75, 0.75);
-        const nod = THREE.MathUtils.clamp(Math.atan2(-tmp.x, Math.hypot(tmp.y, tmp.z)) * 0.4, -0.25, 0.25);
-        headTarget.setFromEuler(new THREE.Euler(roll, 0, nod, 'XZY'));
-        hp.quaternion.slerp(headTarget, 1 - Math.exp(-dt * 2.5));
-        for (const e of p.eyes) {
-          tmp.copy(viewerPos);
-          e.group.parent.worldToLocal(tmp);
-          tmp.sub(e.group.position).normalize();
-          eyeTarget.setFromUnitVectors(new THREE.Vector3(0, 1, 0), tmp);
-          // begränsa ögonrörelsen till ca 35°
-          const ang = 2 * Math.acos(Math.min(1, Math.abs(eyeTarget.w)));
-          if (ang > 0.6) eyeTarget.slerpQuaternions(new THREE.Quaternion(), eyeTarget, 0.6 / ang);
-          e.group.quaternion.slerp(eyeTarget, 1 - Math.exp(-dt * 12));
+        lid = blinkT < BLINK_DOWN ? blinkT / BLINK_DOWN : Math.max(0, 1 - (blinkT - BLINK_DOWN) / BLINK_UP);
+        if (blinkT > BLINK_DOWN + BLINK_UP) {
+          if (doubleBlink) { blinkT = 0; doubleBlink = false; } else blinkT = -1;
         }
       }
+
+      // Uttryck: basnivå + kort grimas som klingar av.
+      if (flinchAmp > 0) { flinchT += dt; if (flinchT > 1.6) flinchAmp = 0; }
+      const fl = flinchAmp * (flinchT < 0.12 ? flinchT / 0.12 : Math.exp(-(flinchT - 0.12) * 2.2));
+      const k = 1 - Math.exp(-dt * 4);
+      expr.worried += (Math.max(base.worried, fl * 0.3) - expr.worried) * k;
+      expr.pain += (Math.max(base.pain, fl) - expr.pain) * (fl > expr.pain ? 1 - Math.exp(-dt * 25) : k);
+      const squint = expr.pain * 0.25;
+      impl.face?.({ blinkL: Math.min(1, lid + squint), blinkR: Math.min(1, lid + squint), worried: expr.worried * (1 - expr.pain * 0.6), pain: expr.pain });
+
+      impl.look?.(dt, viewerPos);
     },
   };
   bus.emit('patient.ready', { kind: api.kind });
   return api;
 }
 
-async function tryLoadGlb(url) {
+// ------------------------------------------------------------------ GLB-patienten
+async function loadGlbPatient(url, renderer) {
   const loader = new GLTFLoader();
   loader.setMeshoptDecoder(MeshoptDecoder);
-  const gltf = await loader.loadAsync(url);
+  if (!ktx2) {
+    ktx2 = new KTX2Loader().setTranscoderPath(new URL('../../vendor/three/addons/libs/basis/', import.meta.url).href);
+    if (renderer) ktx2.detectSupport(renderer);
+  }
+  loader.setKTX2Loader(ktx2);
+  const dir = url.replace(/[^/]+$/, '');
+  const [gltf, info, bodyMasks, armMasks, detail] = await Promise.all([
+    loader.loadAsync(url),
+    fetch(dir + 'tex_info.json').then((r) => r.json()),
+    ktx2.loadAsync(dir + 'body_masks.ktx2'),
+    ktx2.loadAsync(dir + 'arm_masks.ktx2'),
+    ktx2.loadAsync(dir + 'skin_detail_normal.ktx2'),
+  ]);
+  for (const t of [bodyMasks, armMasks, detail]) { t.colorSpace = THREE.NoColorSpace; t.flipY = false; }
+  detail.wrapS = detail.wrapT = THREE.RepeatWrapping;
+  const TILE = 0.012; // porkaklets storlek i meter (samma som i Blender)
+
   const root = gltf.scene;
   root.name = 'patient:glb';
-  const find = (n) => root.getObjectByName(n);
-  let skinMat = null;
   const morphMeshes = [];
+  const skinMats = [];
   root.traverse((o) => {
     if (!o.isMesh) return;
-    o.castShadow = o.receiveShadow = true;
-    if (/skin|body/i.test(o.material?.name || '')) skinMat ||= o.material;
+    const m = o.material;
+    o.castShadow = !/Lashes|Brows|Cornea/.test(m.name);
+    o.receiveShadow = true;
+    if (m.name === 'Skin_Body' || m.name === 'Skin_Arm') {
+      const arm = m.name === 'Skin_Arm';
+      const sm = makeSkinMaterial(m, {
+        masks: arm ? armMasks : bodyMasks, detail,
+        detailRepeat: (arm ? info.arm_m_per_uv : info.body_m_per_uv) / TILE,
+      });
+      o.material = sm; skinMats.push(sm);
+    } else if (/Hair|Brows|Lashes/.test(m.name)) {
+      m.alphaTest = 0.5; m.alphaToCoverage = true; m.transparent = false; m.side = THREE.DoubleSide;
+      m.depthWrite = true;
+    } else if (m.name === 'Cornea') {
+      // Hornhinnan: bara speglande reflexer (additivt), ger det fuktiga ögat utan dyr transmission.
+      o.material = new THREE.MeshStandardMaterial({
+        name: 'Cornea', color: 0x000000, roughness: 0.04, metalness: 0,
+        transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, envMapIntensity: 1.4,
+      });
+      o.renderOrder = 2;
+    } else if (m.name === 'Eye') {
+      m.roughness = 0.35;
+    }
     if (o.morphTargetDictionary) morphMeshes.push(o);
   });
-  const woundAnchor = find('WoundAnchor') || new THREE.Object3D();
+
+  const morph = (name, v) => {
+    for (const m of morphMeshes) {
+      const i = m.morphTargetDictionary[name];
+      if (i !== undefined) m.morphTargetInfluences[i] = v;
+    }
+  };
+
+  // Skelettet
+  let skeleton = null;
+  root.traverse((o) => { if (o.isSkinnedMesh && !skeleton) skeleton = o.skeleton; });
+  const bone = (n) => skeleton?.getBoneByName(n) || root.getObjectByName(n);
+  root.updateMatrixWorld(true);
+
+  // Blick: ögonnoder + huvud och nacke
+  const tmpV = new THREE.Vector3(), tmpQ = new THREE.Quaternion(), tmpQ2 = new THREE.Quaternion();
+  const eyes = ['Eye_L', 'Eye_R'].map((n) => root.getObjectByName(n)).filter(Boolean).map((e) => {
+    const fwdW = new THREE.Vector3().fromArray(e.userData.fwd || [0, 0, 1]).normalize();
+    const pq = e.parent.getWorldQuaternion(new THREE.Quaternion());
+    return { node: e, q0: e.quaternion.clone(), fwdP: fwdW.clone().applyQuaternion(pq.clone().invert()) };
+  });
+  const head = bone('head'), neck = bone('neck_01');
+  const headFwdW = eyes.length ? new THREE.Vector3().fromArray(eyes[0].node.userData.fwd).normalize() : new THREE.Vector3(1, 0, 0);
+  const lookRig = [head, neck].filter(Boolean).map((b, i) => {
+    const pq = b.parent.getWorldQuaternion(new THREE.Quaternion());
+    return { b, q0: b.quaternion.clone(), fwdP: headFwdW.clone().applyQuaternion(pq.clone().invert()), share: i === 0 ? 0.6 : 0.4 };
+  });
+  const gaze = { target: new THREE.Vector3(), hold: 0, has: false };
+
+  function aimNode(n, dirWorld, maxAngle, share, rate, dt) {
+    // Riktning i förälderns rum; rotera från viloriktningen, begränsat och delat (share).
+    const pq = n.b ? n.b.parent.getWorldQuaternion(tmpQ2) : n.node.parent.getWorldQuaternion(tmpQ2);
+    const d = tmpV.copy(dirWorld).applyQuaternion(pq.invert()).normalize();
+    tmpQ.setFromUnitVectors(n.fwdP, d);
+    let ang = 2 * Math.acos(Math.min(1, Math.abs(tmpQ.w)));
+    const lim = Math.min(1, maxAngle / Math.max(ang, 1e-4)) * share;
+    tmpQ.slerpQuaternions(new THREE.Quaternion(), tmpQ, lim);
+    const goal = tmpQ.multiply(n.q0);
+    const obj = n.b || n.node;
+    obj.quaternion.slerp(goal, 1 - Math.exp(-dt * rate));
+  }
+
+  // Fingrar (höger hand): böjningsaxel i varje bens lokala rum, räknad från handflatans normal.
+  const fingerRig = {};
+  const handR = bone('hand_r');
+  if (handR) {
+    const p = (n) => bone(n).getWorldPosition(new THREE.Vector3());
+    const hDir = p('middle_01_r').sub(p('hand_r')).normalize();
+    const across = p('index_01_r').sub(p('pinky_01_r')).normalize();
+    let palmN = new THREE.Vector3().crossVectors(hDir, across).normalize();
+    if (palmN.y < 0) palmN.negate();              // handflatan uppåt (supinerad)
+    for (const f of FINGERS) {
+      fingerRig[f] = ['01', '02', '03'].map((j, idx) => {
+        const b = bone(`${f}_${j}_r`);
+        const a = p(`${f}_${j}_r`);
+        const tail = b.children[0] ? b.children[0].getWorldPosition(new THREE.Vector3()) : a.clone().add(hDir.clone().multiplyScalar(0.02));
+        const dir = tail.sub(a).normalize();
+        const axisW = new THREE.Vector3().crossVectors(dir, palmN).normalize();
+        const bq = b.getWorldQuaternion(new THREE.Quaternion());
+        return { b, q0: b.quaternion.clone(), axisL: axisW.applyQuaternion(bq.invert()), max: THREE.MathUtils.degToRad(FLEX_MAX[f][idx]) };
+      });
+    }
+  }
+  const fingerTarget = Object.fromEntries(FINGERS.map((f) => [f, 0]));
+  const fingerNow = Object.fromEntries(FINGERS.map((f) => [f, 0]));
+
+  const woundAnchor = root.getObjectByName('WoundAnchor') || new THREE.Object3D();
   return {
     kind: 'glb',
     root,
     anchors: { wound: woundAnchor },
-    parts: { headPivot: find('HeadPivot') || null, eyes: [] },
-    skin: skinMat, skinBase: skinMat ? skinMat.color.clone() : null,
-    morph(name, v) {
-      for (const m of morphMeshes) {
-        const i = m.morphTargetDictionary[name];
-        if (i !== undefined) m.morphTargetInfluences[i] = v;
+    breath(s) { morph('breath_chest', s * 0.8); morph('breath_abd', s); },
+    face({ blinkL, blinkR, worried, pain }) {
+      morph('blink_L', blinkL); morph('blink_R', blinkR); morph('worried', worried); morph('pain', pain);
+    },
+    setSkin(pallor, sweat) {
+      for (const m of skinMats) {
+        m.userData.skinUniforms.uPallor.value = THREE.MathUtils.clamp(pallor, 0, 1);
+        m.userData.skinUniforms.uSweat.value = THREE.MathUtils.clamp(sweat, 0, 1);
+      }
+    },
+    setFinger(name, flex) { if (name in fingerTarget) fingerTarget[name] = THREE.MathUtils.clamp(flex, -0.2, 1); },
+    look(dt, viewerPos) {
+      // Fingrar mot målvärdet
+      for (const f of FINGERS) {
+        const r = fingerRig[f]; if (!r) continue;
+        fingerNow[f] += (fingerTarget[f] - fingerNow[f]) * (1 - Math.exp(-dt * 6));
+        for (const j of r) j.b.quaternion.copy(j.q0).multiply(tmpQ.setFromAxisAngle(j.axisL, j.max * fingerNow[f]));
+      }
+      if (!viewerPos) return;
+      // Uppmärksamhet: byt mål med små pauser (0,4–1,6 s), som en människa som tittar till.
+      gaze.hold -= dt;
+      if (!gaze.has || gaze.hold <= 0 || gaze.target.distanceTo(viewerPos) > 0.35) {
+        gaze.target.copy(viewerPos); gaze.has = true; gaze.hold = 0.4 + Math.random() * 1.2;
+      }
+      const hp = head ? head.getWorldPosition(new THREE.Vector3()) : root.position;
+      const dirH = new THREE.Vector3().subVectors(gaze.target, hp).normalize();
+      for (const n of lookRig) aimNode(n, dirH, THREE.MathUtils.degToRad(40), n.share, 2.2, dt);
+      for (const e of eyes) {
+        const ep = e.node.getWorldPosition(new THREE.Vector3());
+        aimNode(e, new THREE.Vector3().subVectors(viewerPos, ep).normalize(), THREE.MathUtils.degToRad(30), 1, 18, dt);
+      }
+    },
+  };
+}
+
+// ------------------------------------------------------------------ platshållaren (reserv)
+function placeholderImpl(scenarioPatient) {
+  const p = buildPlaceholderPatient(scenarioPatient);
+  const skinPale = new THREE.Color(0xd8c6bd);
+  const tmp = new THREE.Vector3();
+  const headTarget = new THREE.Quaternion();
+  const eyeTarget = new THREE.Quaternion();
+  return {
+    kind: 'placeholder',
+    root: p.root,
+    anchors: p.anchors,
+    breath(s) {
+      if (p.parts?.chestPivot) p.parts.chestPivot.scale.y = 1 + 0.045 * s;
+      if (p.parts?.abdPivot) p.parts.abdPivot.scale.y = 1 + 0.03 * s;
+    },
+    face({ blinkL }) { if (p.parts?.eyes) for (const e of p.parts.eyes) e.ball.scale.y = 1 - 0.92 * blinkL; },
+    setSkin(pallor, sweat) {
+      if (!p.skin) return;
+      p.skin.color.copy(p.skinBase).lerp(skinPale, THREE.MathUtils.clamp(pallor, 0, 1));
+      p.skin.roughness = THREE.MathUtils.lerp(0.55, 0.28, THREE.MathUtils.clamp(sweat, 0, 1));
+    },
+    look(dt, viewerPos) {
+      const hp = p.parts?.headPivot;
+      if (!viewerPos || !hp) return;
+      hp.parent.updateMatrixWorld();
+      tmp.copy(viewerPos); hp.parent.worldToLocal(tmp); tmp.sub(hp.position);
+      const roll = THREE.MathUtils.clamp(Math.atan2(tmp.z, tmp.y), -0.75, 0.75);
+      const nod = THREE.MathUtils.clamp(Math.atan2(-tmp.x, Math.hypot(tmp.y, tmp.z)) * 0.4, -0.25, 0.25);
+      headTarget.setFromEuler(new THREE.Euler(roll, 0, nod, 'XZY'));
+      hp.quaternion.slerp(headTarget, 1 - Math.exp(-dt * 2.5));
+      for (const e of p.parts.eyes) {
+        tmp.copy(viewerPos); e.group.parent.worldToLocal(tmp); tmp.sub(e.group.position).normalize();
+        eyeTarget.setFromUnitVectors(new THREE.Vector3(0, 1, 0), tmp);
+        const ang = 2 * Math.acos(Math.min(1, Math.abs(eyeTarget.w)));
+        if (ang > 0.6) eyeTarget.slerpQuaternions(new THREE.Quaternion(), eyeTarget, 0.6 / ang);
+        e.group.quaternion.slerp(eyeTarget, 1 - Math.exp(-dt * 12));
       }
     },
   };

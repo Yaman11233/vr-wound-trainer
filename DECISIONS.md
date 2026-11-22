@@ -29,3 +29,26 @@ Varje beslut som avviker från eller kompletterar uppdragsbeskrivningen, med en 
 - **FPS-mätaren visas bara i instruktörsläget,** som i uppdraget. Den visar draw calls och trianglar per öga mot budgeten.
 - **`layers` begärs inte i WebXR-sessionen ännu.** Det minskar antalet rörliga delar i etapp 1 och prövas i etapp 7.
 - **Emulatorn (IWER 2.8) ligger lokalt och laddas bara med `?iwer=1`.** Vanliga besökare laddar inte de 1,3 MB.
+
+## Etapp: realistisk patient (före händerna)
+
+- **Patienten byggs helt med skript i Blender (`tools/blender/`).** Hela kedjan kan köras om från början, så att ändringar i ålder, vikt, ställning eller sår inte kräver handarbete.
+- **Hudbasen är MakeHumans `young_caucasian_male2` (CC0), förbättrad med egna detaljer i stället för att bytas ut.** MakeHumans hudtexturer är de enda CC0-hudarna som passar MPFB:s UV. Detaljerna räknas per texel i 3D, så de bryts inte av UV-skarvar.
+- **Höger underarm och hand har en egen 2K-textur och delas upp en gång med Catmull-Clark.** De ses från 30–40 cm. Texeln blir ca 0,3 mm mot 0,5 mm i ansiktet. Skarven mot resten av kroppen ligger under t-tröjans ärm.
+- **Huden under kläderna är borttagen.** Det sparar trianglar och hindrar att hud sticker igenom tyget.
+- **Ryggstödet står i 30° och patienten är på 178 cm.** Det är inom 30–45°. En högre vinkel lyfter axeln, och då hamnar armen och såret för högt för att arbeta stående.
+- **Armbordet är ett fristående handbord på 1,05 m, vridet längs armen.** Med höjt ryggstöd ligger axeln högt, och en arm abducerad 75° på madrassnivå skulle tvinga axeln i en onaturlig ställning. Såret hamnar på ca 1,10 m, en rimlig arbetshöjd stående.
+- **Armen är abducerad 75° och sluttar 22° från axeln ned till bordet.** Armbågen är lätt böjd, och underarmen är supinerad med handflatan uppåt.
+- **Supinationen fördelas på överarm (30 %), underarm (55 %) och hand.** Riggen har inget vridben i underarmen, och en vridning på bara ett ben ger synlig "godispappersvridning".
+- **Uttrycken är sammansatta av ARKit-enheter (faceunits01, CC0).** Orolig = inre ögonbryn upp, lätt sänkta mungipor. Smärta = bryn ned, kisande, näsrynkning, överläppen upp. Recepten finns i `step2_pose.py`.
+- **Andningen är två morph targets: bröst och buk.** Fysiologin kan då skilja på lugn bukandning och ytlig, snabb bröstandning.
+- **Fingrarna styrs ett i taget med skelettet.** Distalt status i etapp 5 behöver det.
+- **SSS fejkas i en egen shader.** Shadern använder wrap-belysning, en röd ton i övergången ljus/skugga och svag genomlysning bakifrån, styrt av en mask (öron, näsa, läppar, fingrar). Riktig SSS fungerar inte i Quest-webbläsaren.
+- **Blekhet och svett är shader-parametrar, inte texturbyten.** Blekheten börjar i läppar, ansikte och nagelbäddar. Svetten gör pannan, överläppen och handflatorna blankare och lägger på små droppar.
+- **Porerna är en kakelbar detaljnormal (12 mm), inte en del av huvudtexturen.** De syns skarpa på alla avstånd utan 8K-texturer.
+- **Hornhinnan ritas additivt (bara reflexer).** Den ger det fuktiga ögat utan transmission, som kräver en extra renderingspass.
+- **Hud och normalkartor är UASTC, övrigt ETC1S (KTX2), och geometrin är meshopt-komprimerad.** Huden ses på nära håll där ETC1S ger synliga block. Kläder och hår tål den mindre ETC1S.
+- **KTX-Software (Khronos) hämtades från deras GitHub-release och packades upp utan installation.** Det behövs för KTX2-texturerna.
+- **T-tröjans MakeHuman-logga är bortmålad.** En patient på akuten bär inte en programvarulogga, och vi ska inte visa andras varumärken.
+- **Undersökningslampan är sänkt från intensitet 9 till 5.** Med den riktiga huden blev underarmen urblekt i lampans ljus.
+- **Patienten har ljusbruna ögon och mörkbrunt kort hår.** Det är ett neutralt val för en vanlig vuxen man. Allt går att ändra i `step1_human.py` och `step3c_materials.py`.

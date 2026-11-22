@@ -13,6 +13,18 @@ Alla värden markerade `GRANSKA` i koden eller konfigurationen. Ändra status ti
 | 7 | Initial blödningshastighet, 1A (venös) | 30 ml/min | Uppskattning, ingen källa än | `scenarios/forearm-1a.js` |
 | 8 | Tetanus i anamnesen, 1A | Grundvaccinerad, senaste dos för 12 år sedan | Scenarioval; beslutsregeln läggs in i etapp 5 | `scenarios/forearm-1a.js` |
 
+## Anatomi i patientmodellen (granska gärna på bilderna)
+
+Dessa är inga doseringsvärden, men de syns och ska stämma:
+
+| # | Detalj | Nu | Fil |
+|---|---|---|---|
+| 9 | Senor vid volara handleden | FCR radialt, PL i mitten (finns hos ca 85 %), FCU ulnart; synliga i distala 7 cm | `tools/blender/step3b_textures.py` |
+| 10 | Ytliga vener på underarmen | v. cephalica radialt, v. basilica ulnart, v. mediana antebrachii volart i mitten, små vener vid handleden | `tools/blender/step3b_textures.py` |
+| 11 | Sårets läge | Volart, distala underarmen, ca 6 cm proximalt om handledsleden (mätt längs underarmsbenet) | `tools/blender/step2_pose.py` |
+| 12 | Ställning | Ryggstöd 30°, höger arm abducerad 75° och supinerad på handbord, armbågen lätt böjd | `tools/blender/step2_pose.py` |
+| 13 | Blekhet | Börjar i läppar, ansikte och nagelbäddar; huden blir gulgrå, inte vit | `src/patient/skinShader.js` |
+
 ## Att diskutera
 
 - **ATLS 11th ed. (2025):** jag har inte kunnat kontrollera om tabellen över blödningsklasser har ändrats. Om den har det bör fysiologin i etapp 3 följa den nya versionen.

@@ -18,28 +18,39 @@ export const BED = {
   width: 0.68,               // längs Z
   topHeight: 0.78,           // höjd till madrassens ovansida
   headX: 0.45 - 1.95 / 2,    // huvudändans x
+  // Höjt ryggstöd: patienten halvsitter. Samma mått används i Blender (tools/blender/bed.py).
+  backrest: { length: 0.85, deg: 30 },
 };
 
-// Armbordet: från britsens kant (z = -0.91) ut mot användaren.
+// Värdena nedan kommer från patientbygget i Blender (tools/blender, bed_fit.json och
+// step2_report.json) och måste ändras tillsammans med patientens ställning.
+
+// Kudde på ryggstödet under bakhuvudet (mitt, tjocklek, storlek längs ryggstödet × bredd).
+export const PILLOW = { center: [-0.413, 1.241, -1.25], thickness: 0.061, size: [0.36, 0.52] };
+
+// Armbordet (fristående handbord) under höger underarm och hand. Armen är abducerad ca 75°
+// och sluttar från axeln, så bordet står högre än madrassen och är vridet längs armen.
 export const ARM_BOARD = {
-  x: -0.17,
-  zNear: -0.34,              // änden närmast användaren
-  zFar: BED.center[1] + BED.width / 2, // britsens kant
+  center: [-0.133, -0.576],  // x, z
+  length: 0.655,             // längs armen
   width: 0.2,
-  topHeight: BED.topHeight,
+  topHeight: 1.049,
+  yaw: 0.0556,               // vridning kring Y (rad); bordets längdaxel är lokal +Z
 };
 
-// Patientens högra arm på armbordet (punkter i världen, y = armens mittlinje).
+// Patientens högra arm (leder i världen) i den ställda modellen.
 export const RIGHT_ARM = {
-  shoulder: [-0.17, BED.topHeight + 0.09, -1.06],
-  elbow: [-0.17, BED.topHeight + 0.045, -0.77],
-  wrist: [-0.17, BED.topHeight + 0.035, -0.50],
-  fingertips: [-0.17, BED.topHeight + 0.025, -0.31],
+  shoulder: [-0.206, 1.205, -1.048],
+  elbow: [-0.145, 1.095, -0.783],
+  wrist: [-0.141, 1.070, -0.497],
+  fingertips: [-0.119, 1.124, -0.309],
 };
 
 // Sårets mittpunkt: volarsidan, distala underarmen, ca 6 cm proximalt om handleden.
+// GLB-patienten har ett eget ankare (WoundAnchor) som följer armen; detta värde används
+// för undersökningslampans riktning.
 export const WOUND = {
-  position: [-0.17, BED.topHeight + 0.065, -0.56],
+  position: [-0.142, 1.104, -0.557],
   lengthCm: 4.0, // standardvärde; scenariofilen anger sårets mått
 };
 

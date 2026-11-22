@@ -45,6 +45,14 @@ export function createDesktopControls({ camera, dom, onKey }) {
     get enabled() { return enabled; },
     setEnabled(on) { enabled = on; keys.clear(); if (on) reset(); },
     reset,
+    /** Ställ kameran på en punkt och rikta den mot ett mål (världskoordinater), t.ex. för skärmbilder. */
+    setView(pos, target) {
+      camera.position.set(...pos);
+      const d = new THREE.Vector3(...target).sub(camera.position).normalize();
+      yaw = Math.atan2(-d.x, -d.z);
+      pitch = Math.asin(THREE.MathUtils.clamp(d.y, -1, 1));
+      apply();
+    },
     update(dt) {
       if (!enabled) return;
       const speed = keys.has('shift') ? 2.2 : 1.1;

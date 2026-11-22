@@ -15,8 +15,9 @@ export default {
     ageYears: 35,
     weightKg: 75,
     heightCm: 180,
-    // Sökväg till patientmodellen (GLB). null = platshållare tills MPFB2-modellen finns.
-    model: null,
+    // Patientmodellen (GLB, byggd med tools/blender från MPFB2/MakeHuman, CC0).
+    // null = enkel platshållare.
+    model: 'assets/models/patient/patient.glb',
     // Anamnes (ställbar). Används av frågemenyn i etapp 4.
     history: {
       mechanism: 'Skar sig på ett krossat glas när han diskade, för ca 20 minuter sedan.',
