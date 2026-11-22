@@ -10,6 +10,8 @@ import { createXRInput } from './input/xrinput.js';
 import { createDesktopControls } from './input/desktop.js';
 import { createWristMenu } from './ui/wristmenu.js';
 import { createFpsMeter } from './ui/fps.js';
+import { createContactShadow } from './patient/contactShadow.js';
+import { ARM_BOARD } from './env/layout.js';
 import { setLanguage, savedLanguage, t, onLanguageChange } from './i18n/index.js';
 import { SCENARIOS, getScenario } from '../scenarios/index.js';
 
@@ -56,6 +58,7 @@ const { renderer, scene, camera, rig, world } = createStage($('app'));
 const room = buildRoom(world);
 const scenario = getScenario(ui.scenario.value);
 const patient = await createPatient(world, scenario.patient, { renderer });
+if (patient.kind === 'glb') world.add(createContactShadow(patient.root, ARM_BOARD));
 const input = createXRInput(renderer, rig);
 const fps = createFpsMeter({ camera, domEl: ui.fps });
 let baseHeight = 0;

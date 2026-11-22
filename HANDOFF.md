@@ -1,6 +1,6 @@
 # Handoff: Sårvård VR
 
-Senast uppdaterad: 22 november 2026, efter etappen med den realistiska patienten.
+Senast uppdaterad: 23 november 2026, efter rättelserna av patienten.
 
 ## Var allt finns
 
@@ -23,6 +23,23 @@ Senast uppdaterad: 22 november 2026, efter etappen med den realistiska patienten
 | 5 | Fas B: handsprit, distalt status, sterila handskar, fält, bedövning, spolning, exploration | |
 | 6 | Suturering | |
 | 7 | Genomgång, lägen, språk, realism och prestanda | |
+
+## Rättelser 23 november (efter din granskning i datorläget)
+
+| # | Punkt | Gjort |
+|---|---|---|
+| 1 | Handen | Handen är ca 20 cm lång, fingrarna ca 1,9 cm breda, lillfingret förlängt till ca 75 % och pekfingret till ca 93 % av långfingret. Fingrarna ligger samlade i en avslappnad kaskad (mest böjt i lillfingret) och tummen vilar längs pekfingret. |
+| 2 | Kontakt | Underarmens undersida och handryggen ligger plant mot bordet, plattas till och sjunker 2,5 mm in i dynan. En beräknad kontaktskugga ligger på bordet. |
+| 3 | Armbågen | Böjd ca 14° (överarmen sluttar 12°, underarmen vinklad 8° mot fotänden). |
+| 4 | Blicken | Följer kameran även i datorläget. Huvud och nacke vrids upp till 70° åt sidan. |
+| 5 | Håret | Tät kärna med alpha-to-coverage plus en mjuk kant. Hårbotten är målad mörkbrun, så den gula fläcken är borta. |
+| 6 | Kudden | Mjuk, rundad, 46 cm bred (britsen 68 cm), med en grop under bakhuvudet. |
+| 7 | Uttagen | Riktiga gasuttag (syrgas vit, medicinsk luft svart/vit, vakuum gult) med text, och tre jordade eluttag. |
+| 8 | Vagnen | Rostfritt får UV i världsskala; inga utdragna ränder. |
+| 9 | FPS-mätaren | I datorläget bara i hörnet, som skylt bara i VR. |
+| 10 | Tangenterna | Fokus flyttas från startkortet till 3D-vyn; piltangenterna fungerar också. Provat: W flyttar framåt, Q/E sänker/höjer. |
+
+Hudtextur från foto: se `FOTOINSTRUKTION.md`.
 
 ## Klart i patientetappen
 
@@ -60,15 +77,21 @@ Senast uppdaterad: 22 november 2026, efter etappen med den realistiska patienten
 
 | | Värde | Mål |
 |---|---|---|
-| Patientens trianglar | **47 176** (hud 28 604, varav arm 15 664; kläder 7 168; hår 3 678; skor 3 064; tänder 1 566; ögon 2 040; övrigt 1 056) | 40 000–60 000 |
+| Patientens trianglar | **47 170** (hud 28 598; kläder 7 168; hår 3 678; skor 3 064; tänder 1 566; ögon 2 040; övrigt 1 056) | 40 000–60 000 |
 | Patientens nät / material | 13 nät, 11 material, 53 ben | |
-| Hela scenen, översiktsvy | **59 draw calls, 99 188 trianglar** (inklusive skuggpasset) | < 100, < 300 000 |
-| Nedladdning | patient.glb 9,3 MB + hudkartor 0,9 MB (KTX2 + meshopt) | |
+| Hela scenen, översiktsvy | **67 draw calls, 113 322 trianglar** (inklusive skuggpasset, kudden, uttagen och hårets andra pass) | < 100, < 300 000 |
+| Nedladdning | patient.glb 9,0 MB + hudkartor 0,8 MB (KTX2 + meshopt) | |
 | Texturminne (GPU) | ca 55 MB (nio 2K-texturer, resten 1K och mindre) | |
 
 ### Bilder
 
-`screenshots/patient/`: `blender_*.jpg` är Cycles-renderingar i full kvalitet och `app_*.jpg` är skärmbilder ur appen (datorläget, samma renderare som i Quest men utan headsetets upplösning och linser). Jämförelsen står i avsnittet nedan.
+`screenshots/patient/`:
+
+- `blender_*.jpg`: Cycles-renderingar i full kvalitet. Kroppen, underarmen och handen är omrenderade efter rättelserna. Ansiktet är från förra omgången, och ansiktet har inte ändrats.
+- `app_*.jpg`: skärmbilder ur appen (datorläget, samma renderare som i Quest men utan headsetets upplösning och linser).
+- `app_side_board.jpg` och `app_side_hand.jpg`: tagna från sidan i armbordets höjd, för att visa kontakten mot underlaget.
+
+Jämförelsen står i avsnittet nedan.
 
 ## Klart i etapp 1
 
@@ -111,7 +134,7 @@ Senast uppdaterad: 22 november 2026, efter etappen med den realistiska patienten
 3. **Helheten:** ser patienten ut som en verklig människa, eller som en docka? Notera vad som stör mest.
 4. **Ansiktet (gå till huvudändan):** följer blicken dig? Ser blinkningar, andning och den lätt oroliga minen naturliga ut? Ser huden ut som hud eller som plast?
 5. **Underarmen från 30–40 cm:** syns vener, senor, handledsveck och hår? Ser huden levande ut i lampans ljus?
-6. **Ställningen:** vilar patienten tungt på britsen? Är handbordets höjd (såret på ca 1,10 m) bekväm att arbeta vid stående?
+6. **Ställningen:** vilar patienten tungt på britsen, och vilar armen och handen på handbordet? Är handbordets höjd (såret på ca 1,16 m) bekväm att arbeta vid stående?
 7. **Håret och ögonfransarna:** flimrar kanterna när du rör huvudet?
 
 ## Checklista för headsetet (etapp 1)

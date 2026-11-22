@@ -22,8 +22,9 @@ Dessa är inga doseringsvärden, men de syns och ska stämma:
 | 9 | Senor vid volara handleden | FCR radialt, PL i mitten (finns hos ca 85 %), FCU ulnart; synliga i distala 7 cm | `tools/blender/step3b_textures.py` |
 | 10 | Ytliga vener på underarmen | v. cephalica radialt, v. basilica ulnart, v. mediana antebrachii volart i mitten, små vener vid handleden | `tools/blender/step3b_textures.py` |
 | 11 | Sårets läge | Volart, distala underarmen, ca 6 cm proximalt om handledsleden (mätt längs underarmsbenet) | `tools/blender/step2_pose.py` |
-| 12 | Ställning | Ryggstöd 30°, höger arm abducerad 75° och supinerad på handbord, armbågen lätt böjd | `tools/blender/step2_pose.py` |
+| 12 | Ställning | Ryggstöd 30°, höger arm abducerad 75° och supinerad på handbord, armbågen böjd ca 14°, handryggen mot bordet, fingrarna i avslappnad kaskad | `tools/blender/step2_pose.py` |
 | 13 | Blekhet | Börjar i läppar, ansikte och nagelbäddar; huden blir gulgrå, inte vit | `src/patient/skinShader.js` |
+| 14 | Handens proportioner | Ca 20 cm från handledsvecket till långfingertoppen; fingrar ca 1,9 cm breda; pek-, ring- och lillfinger ca 93, 92 och 75 % av långfingret | `tools/blender/step1_human.py`, `step2_pose.py` |
 
 ## Att diskutera
 

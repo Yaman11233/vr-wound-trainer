@@ -50,6 +50,23 @@ def remove_logos(a):
     a[..., :3] = rgb
     return a
 
+def soften_alpha_card(a, iters=16):
+    """Hårkort: fyll färgen ut i de genomskinliga delarna (annars ljusa kanter när texturen
+    filtreras och mipmappas) och mjuka upp alfakanten en aning."""
+    rgb, al = a[..., :3].copy(), a[..., 3].copy()
+    cov = al > 0.5
+    for _ in range(iters):
+        acc = np.zeros_like(rgb); cnt = np.zeros(cov.shape, np.float32)
+        for dy, dx in ((0, 1), (0, -1), (1, 0), (-1, 0)):
+            acc += np.roll(np.roll(rgb * cov[..., None], dy, 0), dx, 1)
+            cnt += np.roll(np.roll(cov, dy, 0), dx, 1)
+        grow = (~cov) & (cnt > 0)
+        rgb[grow] = acc[grow] / cnt[grow][:, None]
+        cov = cov | grow
+    blur = sum(np.roll(np.roll(al, dy, 0), dx, 1) for dy in (-1, 0, 1) for dx in (-1, 0, 1)) / 9.0
+    a[..., :3] = rgb; a[..., 3] = np.clip(blur * 1.15, 0, 1)
+    return a
+
 def prep_assets():
     out = {}
     c = MH + r'\clothes\male_casualsuit06\male_casualsuit06_'
@@ -61,6 +78,7 @@ def prep_assets():
     out['socks_albedo'] = np_save(img_np(MH + r'\clothes\joepal_crude_low_socks\CrudeLowSocksDiffuse.png'), 'socks_albedo', 512)
     hair = img_np(MH + r'\hair\short01\short01_diffuse.png')
     hair[..., :3] *= np.array([1.0, 0.92, 0.85]) * 0.95       # varmare mörkbrun
+    hair = soften_alpha_card(hair)
     out['hair_albedo'] = np_save(hair, 'hair_albedo', 1024)
     out['brow_albedo'] = np_save(img_np(MH + r'\eyebrows\eyebrow001\eyebrow001.png'), 'brow_albedo')
     out['lash_albedo'] = np_save(img_np(MH + r'\eyelashes\eyelashes02\eyelashes02.png'), 'lash_albedo')

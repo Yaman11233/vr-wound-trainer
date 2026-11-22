@@ -124,6 +124,7 @@ async function loadGlbPatient(url, renderer) {
   root.name = 'patient:glb';
   const morphMeshes = [];
   const skinMats = [];
+  const softPasses = [];
   root.traverse((o) => {
     if (!o.isMesh) return;
     const m = o.material;
@@ -136,9 +137,14 @@ async function loadGlbPatient(url, renderer) {
         detailRepeat: (arm ? info.arm_m_per_uv : info.body_m_per_uv) / TILE,
       });
       o.material = sm; skinMats.push(sm);
-    } else if (/Hair|Brows|Lashes/.test(m.name)) {
-      m.alphaTest = 0.5; m.alphaToCoverage = true; m.transparent = false; m.side = THREE.DoubleSide;
-      m.depthWrite = true;
+    } else if (m.name === 'Hair') {
+      // Två pass: en tät kärna (alphaTest + alpha-to-coverage, skriver djup) och en mjuk kant
+      // ovanpå (alfablandning utan djupskrivning). Ger mjukare hårkanter som inte flimrar.
+      m.alphaTest = 0.55; m.alphaToCoverage = true; m.transparent = false; m.side = THREE.DoubleSide; m.depthWrite = true;
+      softPasses.push(o);
+    } else if (/Brows|Lashes/.test(m.name)) {
+      m.alphaTest = 0.04; m.transparent = true; m.depthWrite = false; m.side = THREE.DoubleSide;
+      o.renderOrder = 1;
     } else if (m.name === 'Cornea') {
       // Hornhinnan: bara speglande reflexer (additivt), ger det fuktiga ögat utan dyr transmission.
       o.material = new THREE.MeshStandardMaterial({
@@ -151,6 +157,15 @@ async function loadGlbPatient(url, renderer) {
     }
     if (o.morphTargetDictionary) morphMeshes.push(o);
   });
+
+  for (const o of softPasses) {
+    const soft = o.clone();
+    soft.material = o.material.clone();
+    Object.assign(soft.material, { alphaTest: 0.03, alphaToCoverage: false, transparent: true, depthWrite: false });
+    soft.castShadow = false; soft.renderOrder = 1; soft.name = o.name + ':soft';
+    o.parent.add(soft);
+    if (soft.morphTargetDictionary) morphMeshes.push(soft);
+  }
 
   const morph = (name, v) => {
     for (const m of morphMeshes) {
@@ -165,32 +180,42 @@ async function loadGlbPatient(url, renderer) {
   const bone = (n) => skeleton?.getBoneByName(n) || root.getObjectByName(n);
   root.updateMatrixWorld(true);
 
-  // Blick: ögonnoder + huvud och nacke
+  // Blick: ögonnoder + huvud och nacke. Varje led har sin viloriktning framåt (F) och uppåt (U)
+  // i förälderns rum; målet delas upp i vridning (kring U) och nick, som begränsas var för sig.
   const tmpV = new THREE.Vector3(), tmpQ = new THREE.Quaternion(), tmpQ2 = new THREE.Quaternion();
-  const eyes = ['Eye_L', 'Eye_R'].map((n) => root.getObjectByName(n)).filter(Boolean).map((e) => {
-    const fwdW = new THREE.Vector3().fromArray(e.userData.fwd || [0, 0, 1]).normalize();
-    const pq = e.parent.getWorldQuaternion(new THREE.Quaternion());
-    return { node: e, q0: e.quaternion.clone(), fwdP: fwdW.clone().applyQuaternion(pq.clone().invert()) };
-  });
+  const D2R = THREE.MathUtils.degToRad;
+  const eye0 = root.getObjectByName('Eye_L');
+  const fwdW = new THREE.Vector3().fromArray(eye0?.userData.fwd || [1, 0, 0]).normalize();
+  const upW = new THREE.Vector3().fromArray(eye0?.userData.up || [0, 1, 0]);
+  upW.sub(fwdW.clone().multiplyScalar(upW.dot(fwdW))).normalize();
+  function restFrame(obj) {
+    const pq = obj.parent.getWorldQuaternion(new THREE.Quaternion()).invert();
+    const F = fwdW.clone().applyQuaternion(pq), U = upW.clone().applyQuaternion(pq);
+    return { F, U, R: new THREE.Vector3().crossVectors(F, U).normalize() };
+  }
   const head = bone('head'), neck = bone('neck_01');
-  const headFwdW = eyes.length ? new THREE.Vector3().fromArray(eyes[0].node.userData.fwd).normalize() : new THREE.Vector3(1, 0, 0);
-  const lookRig = [head, neck].filter(Boolean).map((b, i) => {
-    const pq = b.parent.getWorldQuaternion(new THREE.Quaternion());
-    return { b, q0: b.quaternion.clone(), fwdP: headFwdW.clone().applyQuaternion(pq.clone().invert()), share: i === 0 ? 0.6 : 0.4 };
-  });
+  // Nacken tar 40 % och huvudet resten; gränserna gäller hela rörelsen (ungefär som en vaken patient
+  // som halvsitter: vrida huvudet ca 70° åt sidan, nicka ned 25° och upp 30°).
+  // [ben, andel, vridning, nick ned, nick upp] i grader; nacken tar 40 % av sin gräns, huvudet resten.
+  const lookRig = [[neck, 0.4, 70, 25, 30], [head, 1.0, 42, 15, 18]].filter(([b]) => b)
+    .map(([b, share, yw, dn, upw]) => ({ obj: b, q0: b.quaternion.clone(), ...restFrame(b), share, yaw: D2R(yw), down: D2R(dn), up: D2R(upw) }));
+  const eyes = ['Eye_L', 'Eye_R'].map((n) => root.getObjectByName(n)).filter(Boolean)
+    .map((e) => ({ obj: e, q0: e.quaternion.clone(), ...restFrame(e), share: 1, yaw: D2R(35), down: D2R(25), up: D2R(22) }));
   const gaze = { target: new THREE.Vector3(), hold: 0, has: false };
+  const _d = new THREE.Vector3(), _t = new THREE.Vector3();
 
-  function aimNode(n, dirWorld, maxAngle, share, rate, dt) {
-    // Riktning i förälderns rum; rotera från viloriktningen, begränsat och delat (share).
-    const pq = n.b ? n.b.parent.getWorldQuaternion(tmpQ2) : n.node.parent.getWorldQuaternion(tmpQ2);
-    const d = tmpV.copy(dirWorld).applyQuaternion(pq.invert()).normalize();
-    tmpQ.setFromUnitVectors(n.fwdP, d);
-    let ang = 2 * Math.acos(Math.min(1, Math.abs(tmpQ.w)));
-    const lim = Math.min(1, maxAngle / Math.max(ang, 1e-4)) * share;
-    tmpQ.slerpQuaternions(new THREE.Quaternion(), tmpQ, lim);
+  function aimNode(n, dirWorld, rate, dt) {
+    // Riktningen i förälderns rum (föräldern kan själv ha vridits, t.ex. huvudet för ögonen).
+    n.obj.parent.getWorldQuaternion(tmpQ2).invert();
+    const d = _d.copy(dirWorld).applyQuaternion(tmpQ2).normalize();
+    let yaw = Math.atan2(d.dot(n.R), d.dot(n.F));
+    let pitch = Math.atan2(d.dot(n.U), Math.hypot(d.dot(n.F), d.dot(n.R)));
+    yaw = THREE.MathUtils.clamp(yaw, -n.yaw, n.yaw) * n.share;
+    pitch = THREE.MathUtils.clamp(pitch, -n.down, n.up) * n.share;
+    _t.copy(n.F).multiplyScalar(Math.cos(yaw)).addScaledVector(n.R, Math.sin(yaw)).multiplyScalar(Math.cos(pitch)).addScaledVector(n.U, Math.sin(pitch));
+    tmpQ.setFromUnitVectors(n.F, _t.normalize());
     const goal = tmpQ.multiply(n.q0);
-    const obj = n.b || n.node;
-    obj.quaternion.slerp(goal, 1 - Math.exp(-dt * rate));
+    n.obj.quaternion.slerp(goal, 1 - Math.exp(-dt * rate));
   }
 
   // Fingrar (höger hand): böjningsaxel i varje bens lokala rum, räknad från handflatans normal.
@@ -248,10 +273,10 @@ async function loadGlbPatient(url, renderer) {
       }
       const hp = head ? head.getWorldPosition(new THREE.Vector3()) : root.position;
       const dirH = new THREE.Vector3().subVectors(gaze.target, hp).normalize();
-      for (const n of lookRig) aimNode(n, dirH, THREE.MathUtils.degToRad(40), n.share, 2.2, dt);
+      for (const n of lookRig) { aimNode(n, dirH, 2.2, dt); n.obj.updateMatrixWorld(true); }
       for (const e of eyes) {
-        const ep = e.node.getWorldPosition(new THREE.Vector3());
-        aimNode(e, new THREE.Vector3().subVectors(viewerPos, ep).normalize(), THREE.MathUtils.degToRad(30), 1, 18, dt);
+        const ep = e.obj.getWorldPosition(new THREE.Vector3());
+        aimNode(e, new THREE.Vector3().subVectors(viewerPos, ep).normalize(), 18, dt);
       }
     },
   };

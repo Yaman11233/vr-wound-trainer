@@ -15,6 +15,7 @@ export function materials() {
 
   const std = (name, o) => Object.assign(new THREE.MeshStandardMaterial(o), { name });
 
+  steel.rough.wrapS = steel.rough.wrapT = THREE.RepeatWrapping;
   M = {
     floor: std('floor', { map: floor.map, roughnessMap: floor.rough, roughness: 1.0, metalness: 0 }),
     wall: std('wall', { color: 0xe9e7e1, roughness: 0.92, normalMap: wall.normal, normalScale: new THREE.Vector2(0.35, 0.35) }),
@@ -24,7 +25,7 @@ export function materials() {
     lightPanel: std('lightPanel', { color: 0xffffff, emissive: 0xfffaf0, emissiveIntensity: 1.6, roughness: 0.4 }),
     skirting: std('skirting', { color: 0x8c8c86, roughness: 0.7 }),
     bumperRail: std('bumperRail', { color: 0xbfae94, roughness: 0.55 }), // stötskydd i trälaminat
-    steel: std('steel', { color: 0xc9cdd0, metalness: 1.0, roughness: 0.32, roughnessMap: steel.rough }),
+    steel: Object.assign(std('steel', { color: 0xc9cdd0, metalness: 1.0, roughness: 0.32, roughnessMap: steel.rough }), { userData: { worldUV: 0.35 } }),
     steelDark: std('steelDark', { color: 0x8b9094, metalness: 1.0, roughness: 0.45 }),
     chrome: std('chrome', { color: 0xe6e8ea, metalness: 1.0, roughness: 0.12 }),
     plasticWhite: std('plasticWhite', { color: 0xeeeeea, roughness: 0.45 }),

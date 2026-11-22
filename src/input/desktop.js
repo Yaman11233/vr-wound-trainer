@@ -11,6 +11,7 @@ export function createDesktopControls({ camera, dom, onKey }) {
   let yaw = START.yaw, pitch = START.pitch;
   let dragging = false, lx = 0, ly = 0;
   const keys = new Set();
+  const tapped = new Set();   // korta tryck som släpps före nästa bildruta räknas ändå en gång
   const v = new THREE.Vector3();
 
   camera.rotation.order = 'YXZ';
@@ -24,14 +25,20 @@ export function createDesktopControls({ camera, dom, onKey }) {
     pitch = THREE.MathUtils.clamp(pitch - (e.clientY - ly) * 0.004, -1.45, 1.2);
     lx = e.clientX; ly = e.clientY;
   });
+  // Piltangenterna fungerar som W A S D.
+  const ALIAS = { arrowup: 'w', arrowdown: 's', arrowleft: 'a', arrowright: 'd', pageup: 'e', pagedown: 'q' };
+  // Ett formulärfält räknas bara om det syns (startkortets menyer är dolda i datorläget men
+  // kan ha kvar fokus, och då gick tangenterna tidigare till menyn i stället för kameran).
+  const typingIn = (t) => t?.closest?.('select,input,textarea') && t.offsetParent !== null;
   window.addEventListener('keydown', (e) => {
-    if (!enabled || e.target.closest?.('select,input,textarea')) return;
-    const k = e.key.toLowerCase();
-    keys.add(k);
+    if (!enabled || typingIn(e.target)) return;
+    const k = ALIAS[e.key.toLowerCase()] || e.key.toLowerCase();
+    if (['w', 'a', 's', 'd', 'q', 'e', 'shift'].includes(k)) e.preventDefault();
+    keys.add(k); tapped.add(k);
     if (k === 'r') reset();
     onKey?.(k, e);
   });
-  window.addEventListener('keyup', (e) => keys.delete(e.key.toLowerCase()));
+  window.addEventListener('keyup', (e) => { const k = e.key.toLowerCase(); keys.delete(ALIAS[k] || k); });
   window.addEventListener('blur', () => keys.clear());
 
   function reset() {
@@ -43,7 +50,15 @@ export function createDesktopControls({ camera, dom, onKey }) {
 
   return {
     get enabled() { return enabled; },
-    setEnabled(on) { enabled = on; keys.clear(); if (on) reset(); },
+    setEnabled(on) {
+      enabled = on; keys.clear();
+      if (on) {
+        // ta fokus från startkortet så att tangenterna når kameran
+        if (document.activeElement && document.activeElement !== document.body) document.activeElement.blur();
+        dom.tabIndex = -1; dom.focus({ preventScroll: true });
+        reset();
+      }
+    },
     reset,
     /** Ställ kameran på en punkt och rikta den mot ett mål (världskoordinater), t.ex. för skärmbilder. */
     setView(pos, target) {
@@ -55,14 +70,16 @@ export function createDesktopControls({ camera, dom, onKey }) {
     },
     update(dt) {
       if (!enabled) return;
-      const speed = keys.has('shift') ? 2.2 : 1.1;
-      v.set((keys.has('d') ? 1 : 0) - (keys.has('a') ? 1 : 0), 0, (keys.has('s') ? 1 : 0) - (keys.has('w') ? 1 : 0));
+      const has = (k) => keys.has(k) || tapped.has(k);
+      const speed = has('shift') ? 2.2 : 1.1;
+      v.set((has('d') ? 1 : 0) - (has('a') ? 1 : 0), 0, (has('s') ? 1 : 0) - (has('w') ? 1 : 0));
       if (v.lengthSq() > 0) {
         v.normalize().multiplyScalar(speed * dt).applyAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
         camera.position.add(v);
       }
-      if (keys.has('q')) camera.position.y = Math.max(0.9, camera.position.y - dt * 0.6);
-      if (keys.has('e')) camera.position.y = Math.min(1.9, camera.position.y + dt * 0.6);
+      if (has('q')) camera.position.y = Math.max(0.9, camera.position.y - dt * 0.6);
+      if (has('e')) camera.position.y = Math.min(1.9, camera.position.y + dt * 0.6);
+      tapped.clear();
       camera.position.x = THREE.MathUtils.clamp(camera.position.x, ROOM.minX + 0.25, ROOM.maxX - 0.25);
       camera.position.z = THREE.MathUtils.clamp(camera.position.z, ROOM.minZ + 0.25, ROOM.maxZ - 0.25);
       apply();

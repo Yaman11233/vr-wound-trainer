@@ -49,7 +49,7 @@ def arm_board_from_rig(arm):
         if -0.02 < t < (tip - el).length + 0.02 and side.length < 0.06:
             zs.append(p.z)
     ev.to_mesh_clear()
-    top = min(zs) + 0.004          # underarmen trycks ned ca 4 mm i dynan
+    top = min(zs) + 0.0025         # huden (redan tillplattad i step3a) sjunker ca 2,5 mm in i dynan
     # bordet går från britsens kant ut förbi fingertopparna
     start = el - axis * 0.12
     end = tip + axis * 0.06
@@ -58,6 +58,26 @@ def arm_board_from_rig(arm):
     yaw = math.atan2(axis.y, axis.x)
     return {'top': top, 'center': [center.x, center.y], 'length': length, 'yaw_blender': yaw,
             'axis': [axis.x, axis.y], 'elbow': list(el), 'wrist': list(wr), 'tip': list(tip)}
+
+def fit(arm):
+    """Räkna fram armbordets och kuddens placering från den ställda modellen och spara bed_fit.json."""
+    up, n = (Vector(v) for v in BED.backrest_dirs())
+    out = {'armboard': arm_board_from_rig(arm)}
+    head = arm.matrix_world @ arm.data.bones['head'].head_local
+    body = bpy.data.objects['Patient.body']
+    H = Vector((BED.HINGE_X, BED.BED_Y, BED.BED_TOP))
+    dg = bpy.context.evaluated_depsgraph_get(); ev = body.evaluated_get(dg); m = ev.to_mesh()
+    hv = [body.matrix_world @ v.co for v in m.vertices if (body.matrix_world @ v.co - head).length < 0.2 and (body.matrix_world @ v.co).x < head.x + 0.05]
+    ev.to_mesh_clear()
+    back = min(hv, key=lambda p: n.dot(p - H))      # bakhuvudets lägsta punkt mot ryggstödet
+    gap = n.dot(back - H)
+    thick = max(0.04, gap + 0.015)                   # huvudet sjunker 1,5 cm in i kudden
+    along = (head - H).dot(up)
+    pc = H + up * along + n * (thick / 2)
+    out['pillow'] = {'center': list(pc), 'thickness': thick, 'along': along,
+                     'contact': list(back), 'contact_app': BED.app_from_blender(back)}
+    write_json(os.path.join(WORK, 'bed_fit.json'), out)
+    return out
 
 def build(arm=None):
     up, n = (Vector(v) for v in BED.backrest_dirs())
@@ -78,22 +98,10 @@ def build(arm=None):
     box('Floor', (8, 8, 0.02), (0.4, 1.2, -0.01), material=floor, bevel=0)
     out = {}
     if arm is not None:
-        a = arm_board_from_rig(arm)
+        out = fit(arm)
+        a = out['armboard']
         box('ArmBoard', (a['length'], 0.2, 0.05), (a['center'][0], a['center'][1], a['top'] - 0.025),
             rot=(0, 0, a['yaw_blender']), material=uph, bevel=0.015)
-        out['armboard'] = a
-        # kudden: under bakhuvudet, på ryggstödet
-        head = arm.matrix_world @ arm.data.bones['head'].head_local
-        body = bpy.data.objects['Patient.body']
-        H = Vector((BED.HINGE_X, BED.BED_Y, T))
-        dg = bpy.context.evaluated_depsgraph_get(); ev = body.evaluated_get(dg); m = ev.to_mesh()
-        hv = [body.matrix_world @ v.co for v in m.vertices if (body.matrix_world @ v.co - head).length < 0.2 and (body.matrix_world @ v.co).x < head.x + 0.05]
-        ev.to_mesh_clear()
-        gap = min(n.dot(p - H) for p in hv)     # avstånd från ryggstödet till bakhuvudet
-        thick = max(0.04, gap + 0.015)
-        along = (head - H).dot(up)
-        pc = H + up * along + n * (thick / 2)
-        box('Pillow', (0.36, 0.52, thick), pc, rot=(0, th, 0), material=pillow_m, bevel=0.03)
-        out['pillow'] = {'center': list(pc), 'thickness': thick, 'along': along}
-        write_json(os.path.join(WORK, 'bed_fit.json'), out)
+        pl = out['pillow']
+        box('Pillow', (0.36, 0.48, pl['thickness']), Vector(pl['center']), rot=(0, th, 0), material=pillow_m, bevel=0.03)
     return out

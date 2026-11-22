@@ -118,6 +118,36 @@ bm.to_mesh(body.data); bm.free()
 bpy.ops.object.select_all(action='DESELECT')
 armpiece.select_set(True); body.select_set(True); bpy.context.view_layer.objects.active = body
 bpy.ops.object.join()
+
+# ------------------------------------------------------------------ kontakt mot armbordet
+# Underarmens och handryggens undersida plattas till där den vilar mot dynan (mjukdelar som
+# trycks ihop), så att kontaktytan blir plan i stället för en rund cylinder som snuddar bordet.
+Bn = arm.data.bones
+El = arm.matrix_world @ Bn['lowerarm_r'].head_local
+Mc = arm.matrix_world @ Bn['middle_01_r'].head_local
+ax_h = (Mc - El); ax_h.z = 0; Lh = ax_h.length; ax_h.normalize()
+def on_board(p):
+    t = (p - El).dot(ax_h)
+    side = (p - El) - ax_h * t; side.z = 0
+    return -0.03 < t < Lh + 0.01 and side.length < 0.06
+cand = [v.index for v, m_ in zip(body.data.vertices, range(len(body.data.vertices)))
+        if on_board(body.matrix_world @ v.co)]
+zmin = min((body.matrix_world @ body.data.vertices[i].co).z for i in cand)
+FLAT = zmin + 0.0015
+kb = body.data.shape_keys.key_blocks if body.data.shape_keys else []
+nflat = 0
+for i in cand:
+    v = body.data.vertices[i]
+    z = v.co.z
+    if z < FLAT:
+        dz = (FLAT - (FLAT - z) * 0.15) - z
+        v.co.z += dz
+        for k in kb: k.data[i].co.z += dz
+        nflat += 1
+print('CONTACT zmin', round(zmin, 4), 'flattened verts', nflat)
+import scene_bed
+fitres = scene_bed.fit(arm)
+print('ARMBOARD top', round(fitres['armboard']['top'], 4))
 arm_faces = [p.index for p in body.data.polygons if p.material_index == 1]
 print('ARM faces', len(arm_faces), 'body tris', tri_count(body, False))
 

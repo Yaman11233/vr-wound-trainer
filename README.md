@@ -100,6 +100,11 @@ de nya värdena för kudde, armbord och sår från `patient-work/bed_fit.json` o
 - **Morph targets:** `blink_L`, `blink_R`, `worried`, `pain`, `breath_chest`, `breath_abd`
 - **Material:** `Skin_Body` och `Skin_Arm` får hudshadern (`src/patient/skinShader.js`) med maskerna `body_masks.ktx2`/`arm_masks.ktx2` och porkaklet `skin_detail_normal.ktx2`. `Hair`, `Brows` och `Lashes` ritas med alpha-to-coverage, och `Cornea` additivt.
 
+Kontaktskuggan under armen på handbordet räknas fram vid start från modellens hudpunkter
+(`src/patient/contactShadow.js`).
+
+Hur bilderna för en hudtextur från foto ska tas står i `FOTOINSTRUKTION.md`.
+
 Saknas filen eller går den inte att ladda används en enkel platshållare.
 
 ## Händelsebuss

@@ -7,6 +7,18 @@ const _m = new THREE.Matrix4();
 const _q = new THREE.Quaternion();
 const _e = new THREE.Euler();
 
+function boxProjectUV(g, size) {
+  const p = g.attributes.position, n = g.attributes.normal, uv = g.attributes.uv;
+  for (let i = 0; i < p.count; i++) {
+    const ax = Math.abs(n.getX(i)), ay = Math.abs(n.getY(i)), az = Math.abs(n.getZ(i));
+    const x = p.getX(i) / size, y = p.getY(i) / size, z = p.getZ(i) / size;
+    if (ax >= ay && ax >= az) uv.setXY(i, z, y);
+    else if (ay >= az) uv.setXY(i, x, z);
+    else uv.setXY(i, x, y);
+  }
+  uv.needsUpdate = true;
+}
+
 export class StaticBatcher {
   constructor() { this.groups = new Map(); }
 
@@ -32,6 +44,9 @@ export class StaticBatcher {
       _m.compose(new THREE.Vector3(...(t.p || [0, 0, 0])), _q, new THREE.Vector3(...s));
     }
     g.applyMatrix4(_m);
+    // Material med userData.worldUV (meter per texturrepetition) får box-projicerade UV i världsskala,
+    // så att texturen inte töjs ut på utdragna lådor (t.ex. vagnens hyllplan och ben).
+    if (material.userData?.worldUV) boxProjectUV(g, material.userData.worldUV);
     if (!this.groups.has(material)) this.groups.set(material, []);
     this.groups.get(material).push(g);
     return this;

@@ -210,7 +210,11 @@ def synth(kind):
         temples = smooth(0.0, 0.02, y) * smooth(0.07, 0.05, y) * smooth(0.045, 0.06, ax) * front
         sweat = np.maximum.reduce([sweat, forehead, upperlip, 0.6 * w_nose, 0.5 * temples])
         # hårbotten under håret: lite mörkare, inga porer att tala om
-        tint(0.25 * scalp, [0.8, 0.76, 0.74])
+        # MakeHumans hud har blont hår målat på hårbotten, som syns där hårkorten är glesa
+        # (en gul fläck på hjässan). Måla hårbotten i hårets mörkbruna ton i stället.
+        hs = smooth(0.15, 0.6, scalp)
+        hair_col = V([0.075, 0.055, 0.045]) * (1 + 0.25 * fbm(P, 300.0, 2, seed=40))[:, None]
+        alb = alb * (1 - 0.88 * hs[:, None]) + hair_col * 0.88 * hs[:, None]
         rough = rough + 0.1 * scalp
         # nevi: ett på halsen, ett på kinden
         for c, r in ((EC - hu * 0.15 + hl * 0.045 + hf * 0.0, 0.0012), (EC - hu * 0.045 - hl * 0.055 + hf * 0.01, 0.0009)):

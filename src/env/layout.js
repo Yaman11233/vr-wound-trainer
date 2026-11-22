@@ -25,32 +25,35 @@ export const BED = {
 // Värdena nedan kommer från patientbygget i Blender (tools/blender, bed_fit.json och
 // step2_report.json) och måste ändras tillsammans med patientens ställning.
 
-// Kudde på ryggstödet under bakhuvudet (mitt, tjocklek, storlek längs ryggstödet × bredd).
-export const PILLOW = { center: [-0.413, 1.241, -1.25], thickness: 0.061, size: [0.36, 0.52] };
+// Kudde på ryggstödet: along = mittens avstånd från gångjärnet längs ryggstödet, z = tvärs britsen,
+// thickness = hoptryckt tjocklek under bakhuvudet, dent = gropens djup, size = längd × bredd,
+// dentAlong/dentLateral = gropens mitt relativt kuddens mitt (längs ryggstödet mot fotänden / tvärs).
+export const PILLOW = { along: 0.76, z: -1.25, thickness: 0.012, dent: 0.045, size: [0.38, 0.46], dentAlong: -0.067, dentLateral: -0.045 };
 
-// Armbordet (fristående handbord) under höger underarm och hand. Armen är abducerad ca 75°
-// och sluttar från axeln, så bordet står högre än madrassen och är vridet längs armen.
+// Armbordet (fristående handbord) under höger underarm och hand. Armen är abducerad ca 75°,
+// överarmen sluttar 12° och armbågen är böjd ca 14°, så bordet står högre än madrassen och är
+// vridet längs underarmen. Huden sjunker ca 2,5 mm in i dynan.
 export const ARM_BOARD = {
-  center: [-0.133, -0.576],  // x, z
-  length: 0.655,             // längs armen
+  center: [-0.1756, -0.5647], // x, z
+  length: 0.661,             // längs armen
   width: 0.2,
-  topHeight: 1.049,
-  yaw: 0.0556,               // vridning kring Y (rad); bordets längdaxel är lokal +Z
+  topHeight: 1.104,
+  yaw: 0.2499,               // vridning kring Y (rad); bordets längdaxel är lokal +Z
 };
 
 // Patientens högra arm (leder i världen) i den ställda modellen.
 export const RIGHT_ARM = {
-  shoulder: [-0.206, 1.205, -1.048],
-  elbow: [-0.145, 1.095, -0.783],
-  wrist: [-0.141, 1.070, -0.497],
-  fingertips: [-0.119, 1.124, -0.309],
+  shoulder: [-0.292, 1.205, -1.048],
+  elbow: [-0.228, 1.144, -0.768],
+  wrist: [-0.167, 1.130, -0.489],
+  fingertips: [-0.109, 1.163, -0.303],
 };
 
 // Sårets mittpunkt: volarsidan, distala underarmen, ca 6 cm proximalt om handleden.
 // GLB-patienten har ett eget ankare (WoundAnchor) som följer armen; detta värde används
 // för undersökningslampans riktning.
 export const WOUND = {
-  position: [-0.142, 1.104, -0.557],
+  position: [-0.18, 1.161, -0.548],
   lengthCm: 4.0, // standardvärde; scenariofilen anger sårets mått
 };
 

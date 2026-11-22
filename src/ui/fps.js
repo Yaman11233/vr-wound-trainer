@@ -18,7 +18,7 @@ export function createFpsMeter({ camera, domEl }) {
   mesh.visible = false;
   camera.add(mesh);
 
-  let on = false, frames = 0, acc = 0, worst = 0;
+  let on = false, xr = false, frames = 0, acc = 0, worst = 0;
   let last = { fps: 0, ms: 0, worst: 0, calls: 0, tris: 0 };
 
   function draw() {
@@ -41,8 +41,9 @@ export function createFpsMeter({ camera, domEl }) {
     get on() { return on; },
     set(v) {
       on = !!v;
-      if (domEl) domEl.hidden = !on;
-      mesh.visible = on;
+      // I datorläget bara i hörnet (DOM), som skylt i synfältet bara i VR.
+      if (domEl) domEl.hidden = !on || xr;
+      mesh.visible = on && xr;
     },
     toggle() { this.set(!on); },
     /** Anropas varje bildruta, före render, med verklig dt och renderer.info. */
@@ -54,6 +55,6 @@ export function createFpsMeter({ camera, domEl }) {
         if (on) draw();
       }
     },
-    setXR(isXR) { mesh.visible = on && isXR; if (domEl) domEl.hidden = !on || isXR; },
+    setXR(isXR) { xr = !!isXR; this.set(on); },
   };
 }

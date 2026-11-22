@@ -80,10 +80,26 @@ export function buildRoom(world) {
   }
 
   // --- Medicinsk gaspanel bakom britsens huvudände --------------------------
+  // Väggpanel med gasuttag enligt svensk/europeisk färgkod (SS-EN ISO 9170-1, ISO 32):
+  // syrgas vit, medicinsk luft svart/vit, vakuum (sug) gul. Bredvid: jordade eluttag.
+  const gz = R.minZ + 0.08;                       // panelens framsida
   b.add(BOX, m.gasPanel, { p: [-0.35, 1.45, R.minZ + 0.04], s: [1.6, 0.22, 0.08] });
-  const outlets = [[-0.9, m.o2White], [-0.75, m.vacYellow], [-0.6, m.o2White]];
-  for (const [x, mat] of outlets) b.add(CYL, mat, { p: [x, 1.45, R.minZ + 0.09], r: [Math.PI / 2, 0, 0], s: [0.028, 0.02, 0.028] });
-  for (const x of [0.0, 0.12, 0.24]) b.add(BOX, m.plasticWhite, { p: [x, 1.45, R.minZ + 0.085], s: [0.08, 0.08, 0.01] }); // eluttag
+  const gases = [[-0.9, m.o2White, 'O₂', 'SYRGAS'], [-0.76, m.plasticDark, 'LUFT', 'MED. LUFT'], [-0.62, m.vacYellow, 'VAKUUM', 'SUG']];
+  for (const [x, ring, txt, sub] of gases) {
+    b.add(rbox(0.085, 0.085, 0.014, 0.008), m.plasticWhite, { p: [x, 1.43, gz + 0.007] });
+    b.add(CYL, ring, { p: [x, 1.43, gz + 0.017], r: [Math.PI / 2, 0, 0], s: [0.027, 0.008, 0.027] });
+    b.add(CYL, m.chrome, { p: [x, 1.43, gz + 0.024], r: [Math.PI / 2, 0, 0], s: [0.017, 0.01, 0.017] });
+    b.add(CYL, m.plasticDark, { p: [x, 1.43, gz + 0.0295], r: [Math.PI / 2, 0, 0], s: [0.007, 0.002, 0.007] });
+    label(200, 80, 0.075, 0.03, textLabel(txt, { bg: '#f2f2ee', font: 'bold 40px system-ui, sans-serif', sub, subFont: 'bold 20px system-ui, sans-serif' }),
+      { p: [x, 1.51, gz + 0.001] });
+  }
+  for (const x of [0.0, 0.11, 0.22]) {
+    b.add(rbox(0.08, 0.08, 0.012, 0.006), m.plasticWhite, { p: [x, 1.43, gz + 0.006] });
+    b.add(CYL, m.plasticGrey, { p: [x, 1.43, gz + 0.0125], r: [Math.PI / 2, 0, 0], s: [0.022, 0.002, 0.022] });
+    for (const dx of [-0.0095, 0.0095]) b.add(CYL8, m.plasticDark, { p: [x + dx, 1.43, gz + 0.0138], r: [Math.PI / 2, 0, 0], s: [0.0025, 0.001, 0.0025] });
+    for (const dy of [-0.019, 0.019]) b.add(BOX, m.steel, { p: [x, 1.43 + dy, gz + 0.0135], s: [0.008, 0.003, 0.002] });
+  }
+  label(200, 60, 0.07, 0.021, textLabel('230 V', { bg: '#f2f2ee', font: 'bold 34px system-ui, sans-serif' }), { p: [0.11, 1.495, gz + 0.001] });
 
   buildBed(bc, m);
   buildArmBoard(bc, m);
@@ -217,12 +233,39 @@ function buildBed(b, m) {
     segment(b, m.steelDark, new THREE.Vector3(top[0], top[1], z + dz * width * 0.38),
       new THREE.Vector3(g.hingeX - 0.05, topHeight - 0.12, z + dz * width * 0.38), 0.012);
   }
-  // Kudde på ryggstödet under bakhuvudet.
+  // Kudde på ryggstödet: mjuk och rundad, smalare än britsen, med en grop under bakhuvudet.
   const P = L.PILLOW;
-  b.add(rbox(P.size[0], P.thickness, P.size[1], Math.min(0.03, P.thickness * 0.45), 3), m.pillow || m.paper,
-    { p: P.center, r: [0, 0, -g.t] });
+  const T = P.thickness + P.dent;                            // tjocklek utanför gropen
+  const pc = [g.hingeX + g.up[0] * P.along + g.n[0] * T / 2, topHeight + g.up[1] * P.along + g.n[1] * T / 2];
+  b.add(pillowGeometry(P.size[0], P.size[1], T, P.dentAlong, P.dentLateral, P.dent), m.pillow || m.paper,
+    { p: [pc[0], pc[1], P.z], r: [0, 0, -g.t] });
   // Sidoskenor (rostfria) längs britsens långsidor, för tillbehör.
   for (const dz of [-1, 1]) b.add(BOX, m.steel, { p: [x, topHeight - 0.1, z + dz * (width / 2 + 0.02)], s: [length * 0.6, 0.03, 0.01] });
+}
+
+// Kudde som superellipsoid: platt topp, rundade kanter och en mjuk grop (lokal x = längs ryggstödet
+// mot fotänden, y = ut från ryggstödet, z = tvärs britsen).
+function pillowGeometry(len, wid, thick, dentX, dentZ, dentDepth) {
+  const geo = new THREE.SphereGeometry(1, 48, 24);
+  const pos = geo.attributes.position;
+  const se = (v, e) => Math.sign(v) * Math.pow(Math.abs(v), e);
+  for (let i = 0; i < pos.count; i++) {
+    let x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
+    x = se(x, 0.45) * len / 2; z = se(z, 0.4) * wid / 2;
+    y = se(y, 0.75) * thick / 2;
+    // fyllningen trycks ut mot mitten, kanterna sjunker lite
+    const edge = Math.max(Math.abs(x) / (len / 2), Math.abs(z) / (wid / 2));
+    y *= 1 - 0.18 * Math.pow(edge, 4);
+    if (y > 0) {
+      const d2 = ((x - dentX) ** 2) / (0.075 ** 2) + ((z - dentZ) ** 2) / (0.065 ** 2);
+      y -= dentDepth * Math.exp(-d2) * Math.min(1, y / (thick * 0.25));
+      // svaga veck i örngottet
+      y += 0.0015 * Math.sin(x * 60 + z * 25) * Math.sin(z * 40);
+    }
+    pos.setXYZ(i, x, y, z);
+  }
+  geo.computeVertexNormals();
+  return geo;
 }
 
 function buildPaperRoll(b, m) {

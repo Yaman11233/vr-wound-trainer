@@ -42,6 +42,12 @@ FACE = {
     'neck-scale-horiz-incr': 0.12,
     'stomach-pregnant-incr': 0.12,
     'r-lowerarm-muscle-incr': 0.1, 'l-lowerarm-muscle-incr': 0.08,
+    # Händerna: MakeHumans hand är lite stor med kraftiga fingrar. Smalare och något längre fingrar,
+    # handen ca 5 % mindre (verklig handlängd för en man på 178 cm: ca 19 cm).
+    'r-hand-fingers-diameter-decr': 0.35, 'l-hand-fingers-diameter-decr': 0.35,
+    'r-hand-fingers-length-incr': 0.25, 'l-hand-fingers-length-incr': 0.25,
+    'r-hand-fingers-distance-decr': 0.3, 'l-hand-fingers-distance-decr': 0.3,
+    'r-hand-scale-decr': 0.45, 'l-hand-scale-decr': 0.45,
 }
 
 human_info = {

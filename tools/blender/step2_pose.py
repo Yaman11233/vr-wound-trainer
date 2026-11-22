@@ -147,6 +147,39 @@ def delete_hidden(obj):
 
 delete_hidden(body)
 
+# ---------------------------------------------------------------- 4b. fingrarnas längd
+# MakeHumans lillfinger är för kort (ca 65 % av långfingret, verkligt ca 78 %) och pekfingret
+# något kort. Förläng längs fingrets axel: hud (alla shape keys) och skelett.
+def stretch_finger(side, f, k):
+    names = [f'{f}_0{i}_{side}' for i in (1, 2, 3)]
+    Bn = arm.data.bones
+    base = Bn[names[0]].head_local.copy()
+    d = (Bn[names[2]].tail_local - base).normalized()
+    gi = {body.vertex_groups[n].index for n in names if n in body.vertex_groups}
+    kb = body.data.shape_keys.key_blocks if body.data.shape_keys else []
+    for v in body.data.vertices:
+        w = sum(g.weight for g in v.groups if g.group in gi)
+        if w <= 0: continue
+        s_ = (v.co - base).dot(d)
+        if s_ <= 0: continue
+        delta = d * (s_ * (k - 1) * min(1.0, w))
+        for key in kb: key.data[v.index].co += delta
+        v.co += delta
+    bpy.context.view_layer.objects.active = arm
+    bpy.ops.object.mode_set(mode='EDIT')
+    for n in names:
+        eb = arm.data.edit_bones[n]
+        h0, t0 = eb.head.copy(), eb.tail.copy()
+        eb.head = h0 + d * ((h0 - base).dot(d) * (k - 1))
+        eb.tail = t0 + d * ((t0 - base).dot(d) * (k - 1))
+    bpy.ops.object.mode_set(mode='OBJECT')
+
+for side in ('r', 'l'):
+    stretch_finger(side, 'pinky', 1.17)
+    stretch_finger(side, 'index', 1.05)
+    stretch_finger(side, 'ring', 1.02)
+upd()
+
 # ---------------------------------------------------------------- 5. ställning
 PB = arm.pose.bones
 for pb in PB:
@@ -214,16 +247,32 @@ for s, lat in (('r', lat_r), ('l', lat_l)):
     aim('foot_' + s, Vector((0.62, 0, 0.78)) + lat * 0.2)
     twist('thigh_' + s, 12 if s == 'l' else -12)   # utåtrotation i höften
 
-# Höger arm: abduktion ca 75° från bålen ut på armbordet, armbågen lätt böjd, supinerad.
-ABD = math.radians(75)
-upper_dir = (d_feet * math.cos(ABD) + lat_r * math.sin(ABD)).normalized()
-# Armen sluttar nedåt från axeln (ca 22°) till armbordet, som står lägre än axeln.
-upper_dir = (Vector((upper_dir.x, upper_dir.y, 0)).normalized() * math.cos(math.radians(22)) + Vector((0, 0, -math.sin(math.radians(22))))).normalized()
+def eval_pts(obj=None):
+    obj = obj or body
+    dg = bpy.context.evaluated_depsgraph_get()
+    ev = obj.evaluated_get(dg); m = ev.to_mesh()
+    pts = [obj.matrix_world @ v.co for v in m.vertices]
+    ev.to_mesh_clear(); return pts
+
+def low_z(pts, a, b, t0, t1, rad=0.06):
+    """Lägsta hudpunkt längs sträckan a->b mellan andelarna t0..t1 (inom rad från axeln)."""
+    d = b - a; L = d.length; d = d / L
+    zs = []
+    for p in pts:
+        t = (p - a).dot(d) / L
+        if t0 <= t <= t1 and ((p - a) - d * (p - a).dot(d)).length < rad: zs.append(p.z)
+    return min(zs)
+
+# Höger arm: abduktion ca 75° från bålen ut på armbordet, supinerad.
+ABD = math.radians(75); SLOPE = math.radians(12)
+upper_h = (d_feet * math.cos(ABD) + lat_r * math.sin(ABD)); upper_h.z = 0; upper_h.normalize()
+upper_dir = (upper_h * math.cos(SLOPE) - Vector((0, 0, math.sin(SLOPE)))).normalized()
 aim('clavicle_r', (PB['clavicle_r'].tail - PB['clavicle_r'].head).normalized() + lat_r * 0.1)
 aim('upperarm_r', upper_dir)
-fore_dir = Vector((upper_dir.x, upper_dir.y, -0.02)).normalized()
+# Armbågen böjd ca 14°: överarmen sluttar 12° och underarmen ligger vågrätt, vinklad 8° mot fotänden.
+fore_dir = (Matrix.Rotation(math.radians(8), 3, 'Z') @ upper_h).normalized()
 aim('lowerarm_r', fore_dir)
-aim('hand_r', fore_dir + Vector((0, 0, 0.03)))
+aim('hand_r', fore_dir)
 # Supination: vrid tills handflatan pekar uppåt. Fördela vridningen på överarm, underarm och hand.
 def twist_needed(side, local, up=Vector((0, 0, 1))):
     hb = PB['hand_' + side]; ax = bdir(hb)
@@ -236,7 +285,38 @@ total = twist_needed('r', palm_r)
 twist('upperarm_r', total * 0.3)
 twist('lowerarm_r', total * 0.55)
 twist('hand_r', twist_needed('r', palm_r))
-# Avslappnade fingrar: lätt böjda leder, tummen vilar.
+
+def pitch_about(name, pivot, deg):
+    pb = PB[name]; ax = bdir(pb).cross(Vector((0, 0, 1))).normalized()
+    rot_world(pb, Quaternion(ax, math.radians(deg)), pivot=pivot)
+
+# Underarmens undersida ska vara vågrät, så att den vilar mot bordet både vid armbågen och handleden.
+for it in range(3):
+    pts = eval_pts()
+    E, Wr = PB['lowerarm_r'].head.copy(), PB['lowerarm_r'].tail.copy()
+    zp, zd = low_z(pts, E, Wr, 0.12, 0.3), low_z(pts, E, Wr, 0.72, 0.92)
+    dist = (Wr - E).length * 0.6
+    ang = math.degrees(math.atan2(zd - zp, dist))
+    pitch_about('lowerarm_r', E, -ang)
+    print(f'FOREARM it{it} prox {zp:.4f} dist {zd:.4f} -> {ang:.2f} grader')
+
+# Fingrar: samlade (inte solfjäder), avslappnad kaskad med mest böjning i lillfingret.
+def palm_frame(side, local):
+    h = PB['hand_' + side]; pn = palm_world(side, local)
+    hd = (PB['middle_01_' + side].head - h.head); hd = (hd - pn * hd.dot(pn)).normalized()
+    across = pn.cross(hd).normalized()
+    if across.dot(PB['index_01_' + side].head - PB['pinky_01_' + side].head) < 0: across = -across
+    return hd, across, pn
+
+def adduct(side, local, spread):
+    hd, across, pn = palm_frame(side, local)
+    for f, want in spread.items():
+        pb = PB[f'{f}_01_{side}']; d = bdir(pb)
+        d = (d - pn * d.dot(pn)).normalized()
+        cur = math.degrees(math.atan2(d.dot(across), d.dot(hd)))
+        ax = hd.cross(across).normalized()
+        rot_world(pb, Quaternion(ax, math.radians(want - cur)))
+
 def curl(side, local, fingers, degs):
     for f in fingers:
         for j, deg in zip(('01', '02', '03'), degs):
@@ -244,16 +324,45 @@ def curl(side, local, fingers, degs):
             pn = palm_world(side, local)
             axis = bdir(pb).cross(pn).normalized()
             rot_world(pb, Quaternion(axis, math.radians(deg)))
-curl('r', palm_r, ['index'], (10, 18, 8))
-curl('r', palm_r, ['middle'], (14, 22, 10))
-curl('r', palm_r, ['ring'], (18, 26, 12))
-curl('r', palm_r, ['pinky'], (22, 30, 14))
-curl('r', palm_r, ['thumb'], (4, 8, 6))
+
+def spread_report(side, local):
+    hd, across, pn = palm_frame(side, local)
+    out = {}
+    for f in ('index', 'middle', 'ring', 'pinky'):
+        d = bdir(PB[f'{f}_01_{side}']); d = (d - pn * d.dot(pn)).normalized()
+        out[f] = round(math.degrees(math.atan2(d.dot(across), d.dot(hd))), 1)
+    return out
+
+SPREAD = {'index': 5, 'middle': 0, 'ring': -5, 'pinky': -11}   # grader mot radialsidan
+adduct('r', palm_r, SPREAD)
+print('SPREAD r', spread_report('r', palm_r))
+curl('r', palm_r, ['index'], (7, 12, 6))
+curl('r', palm_r, ['middle'], (10, 17, 8))
+curl('r', palm_r, ['ring'], (14, 22, 10))
+curl('r', palm_r, ['pinky'], (18, 27, 13))
+# Tummen avslappnad: längs pekfingrets radialsida, lätt lyft från handflatans plan.
+hd, across, pn = palm_frame('r', palm_r)
+aim('thumb_01_r', hd * 0.62 + across * 0.62 + pn * 0.12)
+aim('thumb_02_r', hd * 0.88 + across * 0.35 + pn * 0.1)
+aim('thumb_03_r', hd * 0.93 + across * 0.15 + pn * 0.16)
+
+# Handryggen vilar mot bordet i samma plan som underarmens undersida.
+for it in range(3):
+    pts = eval_pts()
+    E, Wr = PB['lowerarm_r'].head.copy(), PB['lowerarm_r'].tail.copy()
+    z_fore = low_z(pts, E, Wr, 0.12, 0.92)
+    H0, Mc = PB['hand_r'].head.copy(), PB['middle_01_r'].head.copy()
+    z_hand = low_z(pts, H0, Mc, 0.35, 1.0, rad=0.05)
+    dist = (Mc - H0).length * 0.7
+    ang = math.degrees(math.atan2(z_hand - z_fore, dist))
+    pitch_about('hand_r', H0, -ang)
+    print(f'HAND it{it} forearm {z_fore:.4f} hand {z_hand:.4f} -> {ang:.2f} grader')
 
 # Vänster arm längs kroppen, underarmen på madrassen bredvid höften, handflatan nedåt-inåt.
 aim('upperarm_l', d_feet * math.cos(math.radians(14)) + lat_l * math.sin(math.radians(14)) - n_back * 0.08)
 aim('lowerarm_l', Vector((1, 0.12, -0.18)))
 aim('hand_l', Vector((1, 0.05, -0.2)))
+adduct('l', palm_l, {'index': 5, 'middle': 0, 'ring': -5, 'pinky': -11})
 curl('l', palm_l, ['index', 'middle', 'ring', 'pinky'], (12, 20, 10))
 
 # ---------------------------------------------------------------- 6. placera mot madrass och ryggstöd
@@ -367,6 +476,7 @@ for o in eye_objs:
     o.parent = arm; o.parent_type = 'BONE'; o.parent_bone = 'head'
     upd(); o.matrix_world = mw
     o['fwd'] = list(BED.app_from_blender(head_fwd))
+    o['up'] = list(BED.app_from_blender(head_up))
 upd()
 
 # ---------------------------------------------------------------- 9. sårankare (volarsidan, distala underarmen)
